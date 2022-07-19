@@ -1,0 +1,4 @@
+{
+    "entryPoints": ["src/nodes.ts", "src/sync.ts"],
+    "out": "docs"
+}

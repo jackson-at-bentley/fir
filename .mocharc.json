@@ -1,0 +1,9 @@
+{
+    "require": [
+        "ts-node/register",
+        "mocha-suppress-logs"
+    ],
+    "loader": "ts-node/esm",
+    "extension": ["ts"],
+    "timeout": 10000
+}

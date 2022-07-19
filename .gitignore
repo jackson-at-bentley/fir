@@ -1,0 +1,11 @@
+node_modules
+
+build
+
+coverage
+.nyc_output
+
+side-effects/*
+!side-effects/.keep
+
+.vscode

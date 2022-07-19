@@ -1,0 +1,51 @@
+{
+  "name": "fir-for-connectors",
+  "description": "Map source files to an iModel",
+  "version": "0.0.0-pitch.08",
+  "homepage": "https://github.com/jackson-at-bentley/fir",
+  "bugs": "https://github.com/jackson-at-bentley/fir/issues",
+  "keywords": [
+    "bentley",
+    "itwin",
+    "connector",
+    "pcf"
+  ],
+  "main": "index.js",
+  "types": "index.d.ts",
+  "author": "Jackson Cooper",
+  "license": "MIT",
+  "files": [
+    "index.d.ts",
+    "build/*"
+  ],
+  "type": "module",
+  "scripts": {
+    "test": "c8 mocha",
+    "compile": "tsc",
+    "tidy": "rm --force --recursive build docs coverage side-effects/imodels side-effects/test-connector.bim",
+    "lint": "eslint src test integration",
+    "doc": "npx typedoc"
+  },
+  "devDependencies": {
+    "@istanbuljs/nyc-config-typescript": "^1.0.2",
+    "@types/chai": "^4.3.1",
+    "@types/mocha": "^9.1.1",
+    "@typescript-eslint/eslint-plugin": "^5.30.7",
+    "c8": "^7.12.0",
+    "chai": "^4.3.6",
+    "eslint": "^8.20.0",
+    "mocha": "^10.0.0",
+    "mocha-suppress-logs": "^0.3.1",
+    "ts-node": "^10.9.1",
+    "typedoc": "^0.23.10",
+    "typescript": "^4.7.4"
+  },
+  "dependencies": {
+    "@itwin/core-backend": "^3.2.6",
+    "@itwin/core-bentley": "^3.2.6",
+    "@itwin/core-common": "^3.2.6",
+    "@itwin/core-geometry": "^3.2.6",
+    "@itwin/core-quantity": "^3.2.6",
+    "@itwin/ecschema-metadata": "^3.2.6"
+  }
+}
