@@ -10,7 +10,7 @@ import type { To } from './sync.js';
 // --- Nodes ---
 
 export type EntityNode<P extends common.EntityProps> =
-    Omit<P, 'id'>;
+    Omit<P, 'id' | 'isInstanceOfEntity'>;
 
 export type ElementNode<P extends common.ElementProps> =
     Omit<EntityNode<P>, keyof ElementPatch>
@@ -23,13 +23,20 @@ export type ModelNode<P extends common.ModelProps> =
 export type AspectNode<P extends common.ElementAspectProps> =
     Omit<EntityNode<P>, | 'identifier' | 'element'>
 
-export type ExternalSourceAspectNode =
-    Omit<AspectNode<common.ExternalSourceAspectProps>, keyof ExternalSourceAspectPatch>
+export type ExternalSourceAspectNode<P extends common.ExternalSourceAspectProps> =
+    Omit<AspectNode<P>, keyof ExternalSourceAspectPatch>
         & ExternalSourceAspectPatch;
 
 export type ExternalSourceNode<P extends common.ExternalSourceProps> =
     Omit<ElementNode<P>, keyof ExternalSourcePatch>
         & ExternalSourcePatch;
+
+export type SourceAndTargetNode<P extends common.SourceAndTarget> =
+    Omit<P, keyof common.SourceAndTarget>
+        & SourceAndTargetPatch;
+
+export type RelationshipNode<P extends common.RelationshipProps> =
+    SourceAndTargetNode<EntityNode<P>> & RelationshipPatch;
 
 // --- Patches ---
 
@@ -62,6 +69,15 @@ export type ExternalSourcePatch = {
     to: To<ExternalSourceNode<common.ExternalSourceProps>, common.ExternalSourceProps>
 };
 
+export type SourceAndTargetPatch = {
+    source: Element,
+    target: Element,
+}
+
+export type RelationshipPatch = {
+    anchor: string,
+}
+
 // --- Exports ---
 
 export type Entity<P extends common.EntityProps = common.EntityProps>
@@ -79,10 +95,14 @@ export type Aspect<P extends common.ElementAspectProps = common.ElementAspectPro
 export type Source<P extends common.ExternalSourceProps = common.ExternalSourceProps>
     = ExternalSourceNode<P>;
 
-export type Repository<P extends common.RepositoryLinkProps = common.RepositoryLinkProps> =
-    ElementNode<P>;
+export type Repository<P extends common.RepositoryLinkProps = common.RepositoryLinkProps>
+    = ElementNode<P>;
 
-export type Meta = ExternalSourceAspectNode;
+export type Meta<P extends common.ExternalSourceAspectProps = common.ExternalSourceAspectProps>
+    = ExternalSourceAspectNode<P>;
+
+export type Relationship<P extends common.RelationshipProps = common.RelationshipProps>
+    = RelationshipNode<P>;
 
 // Unfinished thoughts and things I don't understand about TypeScript.
 

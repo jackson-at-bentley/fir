@@ -55,7 +55,7 @@ I've been [rather vocal](https://github.com/iTwin/connector-framework/pull/55) a
     3. Scope paths must terminate at the root subject. If an element `A` is scoped to an element `B` through its external source aspect, then `B` is a dependency of `A`, and we must know `B`'s ID before we can insert `A`. Because every element in `fir` has an external source aspect, we need to locate `B` before we can insert it, which requires knowing its scope. Unless we eventually resolve an element's scope to the root subject with known ID `IModel.rootSubjectId`, `fir` will never terminate as it tries to locate each element in the chain.
     4. Elements must have exactly one external source aspect. This is not a technical limitation. I just haven't implemented it yet.
 
-![A diagram of the iModel described in the third caveat](https://github.com/jackson-at-bentley/fir/blob/main/images/cycle.png?raw=true)
+![A diagram of the iModel described in the second caveat](https://github.com/jackson-at-bentley/fir/blob/main/images/cycle.svg?raw=true)
 
 ## Getting started 🌱
 
@@ -171,6 +171,16 @@ It may take multiple passes to remove untouched elements from the iModel dependi
 
 Absolutely! Take a look at the integration folder, which has `test-connector.ts`. It's the same test connector in `connector-framework` but it's written in `fir`. Currently it's hard-coded in version `1.0.0` so `fir` won't actually update the elements.
 
+### More iModel things
+
+`fir` supports these iModel things.
+
+- Elements with the `Element` type.
+- Models with the `Model` type.
+- Aspects with the `Aspect` type. Use `Meta` for external source aspects. Note the `aspects` property on `Element`. The caveat is that aspects cannot have navigation properties until the iTwin API allows you to get their ID.
+- Link-table relationships with the `Relationship` type. These take a little bit of care. They have an `anchor` property for provenance. You can't feed them to `sync` because if any part of a relationship changes it's considered a different relationship: anchor, class, source, or target. Use `put` instead.
+- Navigation properties by [extending or escaping the library](#extending-fir-). `fir` comes with the common ones, like parent-child relationships and element-model relationships.
+
 ### Growing taller
 
 Syncing an element requires specifying an awful lot of properties that probably seem redundant. Why should I have to define the BIS class of the element I want to insert? Or the code? Doesn't iTwin know how to make these things for me?
@@ -233,6 +243,8 @@ First, we call `toElement`, which you'll remember from all the elements we made 
 
 This process can be kind of dangerous, and I'm still searching for a better design. Here's why.
 
+![A diagram of fir's type tree. Caption reads, "Dashed nodes are convenience types with the type argument defaulted; solid nodes are used when extending the library. The node at the tail of an arrow is a supertype of the node at the head."](https://github.com/jackson-at-bentley/fir/blob/main/images/types-tree.svg?raw=true)
+
 It turns out we got lucky with this example. When we call `toElement` we're trying to assign our `ExternalSourceAttachment` type to an `Element` type. This would be a beautiful case of type narrowing if it weren't for the `to` properties on the two types. In TypeScript, if you assign a function `f` to another function `g` by writing `g = f`, the function `f` must have at most as large a domain as `g`, because functions that have type `typeof g` give no indication that they do anything with the excess input, like our `attaches` property. They may even explode. In our case `toElement` will happily dump everything it receives into the `ElementProps`.
 
 If the BIS specifications said that the `attaches` relationship is mandatory, we'd have a problem. `Element`'s `to` type doesn't allow that property. We can use `as unknown as Element` to tell TypeScript that we're sure the `to` function will never be invoked without an `attachment` property.
@@ -241,11 +253,10 @@ A better solution is a utility function to safely perform the extraction.
 
 > That's a lot of work and boilerplate for a new navigation property.
 
-Yeah, it is. There are a few solutions.
+Yeah, it is. There are two solutions.
 
 1. Rely on the iTwin library to define referencing relationships. I wrote the test connector without having to define a new intermediate element type. Most BIS classes don't define new navigation properties, and if they do hopefully they have a `create` that does all of that for you.
-2. If the relationship multiplicity allows the property to be empty, you can always leave it undefined and use something like `Element<ExternalSourceAttachmentProps>` with `toElement`: remember that only the `to` types prevent narrowing. Then add the relationship after using the iTwin libraries.
-3. Make `fir` support relationship 'props' types, which makes (2) easier.
+2. Use something like `Element<ExternalSourceAttachmentProps>` with `toElement`; remember that only the `to` types prevent narrowing. Then just use `put` for the `attaches` navigation property. Because there's no intermediate `fir` type, any additional properties that you give to your element will be handed to the iTwin library.
 
 > Dude it's your library. The whole point of `fir`'s 'tree' of element types is that each one is a supertype of its parent. The `to` function is bad design because it prevents narrowing when the supertypes aren't directly assignable to their parent, in which case _they're not supertypes_ but overlapping types.
 
@@ -256,10 +267,10 @@ I'm working on it. In the mean time `strictFunctionTypes` is the compiler option
 - [ ] _urgent!_ Need to figure out how to design the node types to allow the `to` function to properly narrow; otherwise, syncing is going to be difficult with elements with mandatory properties
 - [ ] Test the published package in `connector-framework`
 - [ ] Sync element aspects
-- [ ] What about syncing `RelationshipProps`? Link table relationships should never cause cycles
 - [ ] Support more than one external source aspect
 - [ ] Utility function to safely extract the `Element` type out of other element types
 - [ ] Are there any class types that insert other elements into the iModel? `fir` won't know
+- [x] What about syncing `RelationshipProps`? Link table relationships should never cause cycles
 - [x] Document the `trim` method
 - [x] Trim untethered external sources and repositories. Can we use `trim`?
 - [x] Trim a model

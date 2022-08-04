@@ -27,7 +27,7 @@ describe('integration', () => {
         configuration.appAssetsDir = path.join(root, '..', 'integration', 'assets');
         await backend.IModelHost.startup(configuration);
         bentley.Logger.initializeToConsole();
-        bentley.Logger.setLevelDefault(bentley.LogLevel.Error);
+        bentley.Logger.setLevelDefault(bentley.LogLevel.Warning);
     });
 
     after(async () => {

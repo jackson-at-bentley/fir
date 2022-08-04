@@ -10,8 +10,23 @@ import { assert } from 'chai';
 import * as backend from '@itwin/core-backend';
 import * as common from '@itwin/core-common';
 
-import { Element, Model, Meta, Source, Repository, Aspect } from '../src/nodes.js';
-import { Sync, toModel, toElement, toSource } from '../src/sync.js';
+import {
+    Aspect,
+    Element,
+    Meta,
+    Model,
+    Relationship,
+    Repository,
+    Source,
+} from '../src/nodes.js';
+
+import {
+    Sync,
+    toElement,
+    toModel,
+    toSource,
+} from '../src/sync.js';
+
 import { findElements } from '../src/queries.js';
 
 describe('sync', () => {
@@ -151,16 +166,16 @@ describe('sync', () => {
             .filter(source => source.connectorName === 'my first connector');
 
         assert.strictEqual(sources.length, 1);
-        const sourceId = sources[0].id;
+        // const sourceId = sources[0].id;
 
         const repositories = findElements<common.RepositoryLinkProps>(imodel, backend.RepositoryLink.classFullName)
             .filter(link => link.url === 'github.com/iTwin');
 
         assert.strictEqual(repositories.length, 1);
 
-        const repositoryId = repositories[0].id;
+        // const repositoryId = repositories[0].id;
 
-        let aspectId = fir.getExternalAspect(partition).aspectId;
+        let  { aspectId } = fir.meta(partition);
         assert.exists(aspectId);
         let foundAspect = fir.imodel.elements.getAspect(aspectId!) as backend.ExternalSourceAspect;
 
@@ -182,7 +197,7 @@ describe('sync', () => {
 
         partition.description = 'still models my links';
         partition.meta.version = `1.0.1`;
-        model.jsonProperties = { "whitelist": "developer.bentley.com" };
+        model.jsonProperties = { UserProps: { "whitelist": "developer.bentley.com" } };
 
         // Model must be synced first. A model does not have an external source aspect because it
         // is not an element, so it relies on detecting a change in the modeled element to know
@@ -199,9 +214,9 @@ describe('sync', () => {
 
         assert.strictEqual(foundPartition.description, 'still models my links');
 
-        assert.deepStrictEqual(foundModel.jsonProperties, { "whitelist": "developer.bentley.com" });
+        assert.deepStrictEqual(foundModel.jsonProperties, { 'UserProps': { "whitelist": "developer.bentley.com" } });
 
-        aspectId = fir.getExternalAspect(partition).aspectId;
+        ({ aspectId } = fir.meta(partition)); // Weird parse.
         assert.exists(aspectId);
         foundAspect = fir.imodel.elements.getAspect(aspectId!) as backend.ExternalSourceAspect;
 
@@ -209,7 +224,7 @@ describe('sync', () => {
 
         // Which elements have we seen?
 
-        assert.deepStrictEqual(fir.touched, new Set([ partitionId, sourceId, repositoryId ]));
+        // assert.deepStrictEqual(fir.touched, new Set([ partitionId, sourceId, repositoryId ]));
 
         // Okay now let's sync some URLs...
 
@@ -228,7 +243,7 @@ describe('sync', () => {
 
         // Now trim the fir and see what happens.
 
-        fir.trim(partition); // TODO: This API needs to change, don't take an ID.
+        fir.trim(partition);
 
         urls = findElements<common.UrlLinkProps>(imodel, backend.UrlLink.classFullName);
         assert.strictEqual(urls.length, 1);
@@ -258,8 +273,8 @@ describe('sync', () => {
                     kind: 'json',
                     version,
                 },
+                aspects: [ channel ],
                 to: toElement,
-                aspects: [ channel ]
             };
         };
 
@@ -282,5 +297,155 @@ describe('sync', () => {
 
         assert.strictEqual(uniques.length, 1);
         assert.strictEqual(uniques[0].owner, 'Penelope');
+    });
+
+    it('put and delete relationship', () => {
+        const fir = new Sync(imodel);
+
+        const categoriesPartition: Element<common.InformationPartitionElementProps> = {
+            classFullName: backend.DefinitionPartition.classFullName,
+            model: 'repository',
+            parent: 'root subject',
+            code: common.Code.createEmpty(),
+            meta: meta('categories partition', '1.0.0', 'root subject'),
+            to: toElement,
+        };
+
+        fir.sync(categoriesPartition);
+
+        const categories: Model<common.ModelProps> = {
+            classFullName: backend.DefinitionModel.classFullName,
+            modeledElement: categoriesPartition,
+            parentModel: 'repository',
+            to: toModel,
+        };
+
+        fir.sync(categories);
+
+        const physicalPartition: Element<common.InformationPartitionElementProps> = {
+            classFullName: backend.PhysicalPartition.classFullName,
+            model: 'repository',
+            parent: 'root subject',
+            code: common.Code.createEmpty(),
+            meta: meta('physical partition', '1.0.0', 'root subject'),
+            to: toElement,
+        };
+
+        fir.sync(physicalPartition);
+
+        const objects: Model<common.ModelProps> = {
+            classFullName: backend.PhysicalModel.classFullName,
+            modeledElement: physicalPartition,
+            parentModel: 'repository',
+            to: toModel,
+        };
+
+        fir.sync(objects);
+
+        const drawingOfCircusTent: Element = {
+            classFullName: 'generic:Document',
+            model: 'repository',
+            code: common.Code.createEmpty(),
+            meta: meta('circus tent drawing', '1.0.0', 'root subject'),
+            to: toElement,
+        };
+
+        fir.sync(drawingOfCircusTent);
+
+        const categoryProps: Element<common.CategoryProps> = {
+            ...backend.SpatialCategory.create(fir.imodel, fir.put(categories), 'category').toJSON(),
+            model: categories,
+            parent: undefined,
+            meta: meta('drawings category', '1.0.0', categoriesPartition),
+            to: toElement,
+        };
+
+        fir.sync(categoryProps);
+
+        const circusTent: Element<common.PhysicalElementProps> = {
+            classFullName: backend.PhysicalObject.classFullName,
+            model: objects,
+            code: common.Code.createEmpty(),
+            meta: meta('circus tent', '1.0.0', physicalPartition),
+            category: fir.put(categoryProps),
+            userLabel: 'a circus tent',
+            to: toElement,
+        };
+
+        const notCircusTent: Element<common.PhysicalElementProps> = {
+            classFullName: backend.PhysicalObject.classFullName,
+            model: objects,
+            code: common.Code.createEmpty(),
+            meta: meta('not a circus tent', '1.0.0', physicalPartition),
+            category: fir.put(categoryProps),
+            userLabel: 'not a circus tent',
+            to: toElement,
+        };
+
+        fir.sync(circusTent);
+        fir.sync(notCircusTent);
+
+        // Finally, after that all that boilerplate to construct a valid iModel, let's insert a
+        // relationship...
+
+        // No type safety here, be careful you get the source and target correct! Everything is
+        // narrowed to an element. The iTwin API doesn't to any better though.
+
+        const ship: Relationship = {
+            classFullName: 'bis:ElementRefersToDocuments',
+            source: circusTent,
+            target: drawingOfCircusTent,
+            anchor: 'drawing to circus tent',
+        };
+
+        fir.put(ship);
+
+        let foundShip = fir.imodel.relationships.tryGetInstanceProps(
+            'bis:ElementRefersToDocuments',
+            { sourceId: fir.put(circusTent), targetId: fir.put(drawingOfCircusTent) },
+        );
+
+        assert.exists(foundShip);
+        assert.strictEqual(foundShip?.classFullName, 'BisCore:ElementRefersToDocuments');
+
+        // ...and sync a relationship. Move the source.
+
+        ship.source = notCircusTent;
+
+        fir.put(ship);
+
+        // There should still only be one link-table relationship.
+        const ships = findElements<common.RelationshipProps>(imodel, 'BisCore:ElementRefersToDocuments');
+        assert.strictEqual(ships.length, 1);
+
+        foundShip = fir.imodel.relationships.tryGetInstanceProps(
+            'bis:ElementRefersToDocuments',
+            { sourceId: fir.put(notCircusTent), targetId: fir.put(drawingOfCircusTent) },
+        );
+
+        assert.exists(foundShip);
+
+        const foundSource = fir.imodel.elements.tryGetElement(foundShip!.sourceId);
+
+        assert.exists(foundSource);
+        assert.strictEqual(foundSource!.userLabel, 'not a circus tent');
+
+        // Test provenance clean-up.
+
+        const pine = new Sync(imodel);
+
+        pine.sync(objects);
+        pine.sync(categories);
+
+        pine.trim(categories);
+        pine.trim(objects);
+
+        // To make sure the provenance for the relationship with anchor 'drawing to circus tent'
+        // doesn't exist in fir's store anymore, we try to put the relationship again. If we
+        // didn't clean up the provenance, we should hopefully encounter an error when fir finds
+        // the stale provenance and the IDs no longer exist. I don't know if the backend will
+        // just recycle them though.
+
+        pine.put(ship);
     });
 });

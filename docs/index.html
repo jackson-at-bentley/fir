@@ -73,7 +73,7 @@
 </ol>
 </li>
 </ul>
-<p><img src="https://github.com/jackson-at-bentley/fir/blob/main/images/cycle.png?raw=true" alt="A diagram of the iModel described in the third caveat"></p>
+<p><img src="https://github.com/jackson-at-bentley/fir/blob/main/images/cycle.png?raw=true" alt="A diagram of the iModel described in the second caveat"></p>
 
 <a href="#getting-started-🌱" id="getting-started-🌱" style="color: inherit; text-decoration: none;">
   <h2>Getting started 🌱</h2>
@@ -131,6 +131,18 @@ nodes.ts(53, 5): &#39;to&#39; is declared here.
 </a>
 <p>Absolutely! Take a look at the integration folder, which has <code>test-connector.ts</code>. It&#39;s the same test connector in <code>connector-framework</code> but it&#39;s written in <code>fir</code>. Currently it&#39;s hard-coded in version <code>1.0.0</code> so <code>fir</code> won&#39;t actually update the elements.</p>
 
+<a href="#more-imodel-things" id="more-imodel-things" style="color: inherit; text-decoration: none;">
+  <h3>More iModel things</h3>
+</a>
+<p><code>fir</code> supports these iModel things.</p>
+<ul>
+<li>Elements with the <code>Element</code> type.</li>
+<li>Models with the <code>Model</code> type.</li>
+<li>Aspects with the <code>Aspect</code> type. Use <code>Meta</code> for external source aspects. Note the <code>aspects</code> property on <code>Element</code>. The caveat is that aspects cannot have navigation properties until the iTwin API allows you to get their ID.</li>
+<li>Link-table relationships with the <code>Relationship</code> type. These take a little bit of care. They have an <code>anchor</code> property for provenance. You can&#39;t feed them to <code>sync</code> because if any part of a relationship changes it&#39;s considered a different relationship: anchor, class, source, or target. Use <code>put</code> instead.</li>
+<li>Navigation properties by <a href="#extending-fir-">extending or escaping the library</a>. <code>fir</code> comes with the common ones, like parent-child relationships and element-model relationships.</li>
+</ul>
+
 <a href="#growing-taller" id="growing-taller" style="color: inherit; text-decoration: none;">
   <h3>Growing taller</h3>
 </a>
@@ -152,17 +164,17 @@ nodes.ts(53, 5): &#39;to&#39; is declared here.
 <p>Finally, we have to tell <code>fir</code> how to map this new intermediate type to its &#39;props&#39; type in the iTwin library. This is done with a <code>to</code> function as I mentioned earlier.</p>
 <p>First, we call <code>toElement</code>, which you&#39;ll remember from all the elements we made above. This turns <code>fir</code>&#39;s element type <code>Element</code> into <code>ElementProps</code>. We dump it into our <code>ExternalSourceAttachmentProps</code> and add the <code>attaches</code> property to complete the type. We make use of <code>put</code> to get the ID of the external source this element refers to.</p>
 <p>This process can be kind of dangerous, and I&#39;m still searching for a better design. Here&#39;s why.</p>
+<p><img src="https://github.com/jackson-at-bentley/fir/blob/main/images/types-tree.png?raw=true" alt="A diagram of fir&#39;s type tree. Caption reads, &quot;Dashed nodes are convenience types with the type argument defaulted; solid nodes are used when extending the library. The node at the tail of an arrow is a supertype of the node at the head.&quot;"></p>
 <p>It turns out we got lucky with this example. When we call <code>toElement</code> we&#39;re trying to assign our <code>ExternalSourceAttachment</code> type to an <code>Element</code> type. This would be a beautiful case of type narrowing if it weren&#39;t for the <code>to</code> properties on the two types. In TypeScript, if you assign a function <code>f</code> to another function <code>g</code> by writing <code>g = f</code>, the function <code>f</code> must have at most as large a domain as <code>g</code>, because functions that have type <code>typeof g</code> give no indication that they do anything with the excess input, like our <code>attaches</code> property. They may even explode. In our case <code>toElement</code> will happily dump everything it receives into the <code>ElementProps</code>.</p>
 <p>If the BIS specifications said that the <code>attaches</code> relationship is mandatory, we&#39;d have a problem. <code>Element</code>&#39;s <code>to</code> type doesn&#39;t allow that property. We can use <code>as unknown as Element</code> to tell TypeScript that we&#39;re sure the <code>to</code> function will never be invoked without an <code>attachment</code> property.</p>
 <p>A better solution is a utility function to safely perform the extraction.</p>
 <blockquote>
 <p>That&#39;s a lot of work and boilerplate for a new navigation property.</p>
 </blockquote>
-<p>Yeah, it is. There are a few solutions.</p>
+<p>Yeah, it is. There are two solutions.</p>
 <ol>
 <li>Rely on the iTwin library to define referencing relationships. I wrote the test connector without having to define a new intermediate element type. Most BIS classes don&#39;t define new navigation properties, and if they do hopefully they have a <code>create</code> that does all of that for you.</li>
-<li>If the relationship multiplicity allows the property to be empty, you can always leave it undefined and use something like <code>Element&lt;ExternalSourceAttachmentProps&gt;</code> with <code>toElement</code>: remember that only the <code>to</code> types prevent narrowing. Then add the relationship after using the iTwin libraries.</li>
-<li>Make <code>fir</code> support relationship &#39;props&#39; types, which makes (2) easier.</li>
+<li>Use something like <code>Element&lt;ExternalSourceAttachmentProps&gt;</code> with <code>toElement</code>; remember that only the <code>to</code> types prevent narrowing. Then just use <code>put</code> for the <code>attaches</code> navigation property. Because there&#39;s no intermediate <code>fir</code> type, any additional properties that you give to your element will be handed to the iTwin library.</li>
 </ol>
 <blockquote>
 <p>Dude it&#39;s your library. The whole point of <code>fir</code>&#39;s &#39;tree&#39; of element types is that each one is a supertype of its parent. The <code>to</code> function is bad design because it prevents narrowing when the supertypes aren&#39;t directly assignable to their parent, in which case <em>they&#39;re not supertypes</em> but overlapping types.</p>
@@ -176,10 +188,10 @@ nodes.ts(53, 5): &#39;to&#39; is declared here.
 <li><input disabled="" type="checkbox"> <em>urgent!</em> Need to figure out how to design the node types to allow the <code>to</code> function to properly narrow; otherwise, syncing is going to be difficult with elements with mandatory properties</li>
 <li><input disabled="" type="checkbox"> Test the published package in <code>connector-framework</code></li>
 <li><input disabled="" type="checkbox"> Sync element aspects</li>
-<li><input disabled="" type="checkbox"> What about syncing <code>RelationshipProps</code>? Link table relationships should never cause cycles</li>
 <li><input disabled="" type="checkbox"> Support more than one external source aspect</li>
 <li><input disabled="" type="checkbox"> Utility function to safely extract the <code>Element</code> type out of other element types</li>
 <li><input disabled="" type="checkbox"> Are there any class types that insert other elements into the iModel? <code>fir</code> won&#39;t know</li>
+<li><input checked="" disabled="" type="checkbox"> What about syncing <code>RelationshipProps</code>? Link table relationships should never cause cycles</li>
 <li><input checked="" disabled="" type="checkbox"> Document the <code>trim</code> method</li>
 <li><input checked="" disabled="" type="checkbox"> Trim untethered external sources and repositories. Can we use <code>trim</code>?</li>
 <li><input checked="" disabled="" type="checkbox"> Trim a model</li>

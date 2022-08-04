@@ -4,6 +4,7 @@
     "module": "esnext",
     "moduleResolution": "nodenext",
     "esModuleInterop": true,
+    "lib": [ "esnext" ],
     "outDir": "./build",
     "declaration": true,
     "declarationDir": "build",

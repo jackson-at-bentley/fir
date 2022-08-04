@@ -7,20 +7,63 @@ import * as backend from '@itwin/core-backend';
 import * as bentley from '@itwin/core-bentley';
 import * as common from '@itwin/core-common';
 
-import { Element, Model, Aspect, Entity, Source, Meta } from './nodes.js';
-import { modelOf, childrenOfModel, childrenOfElement } from './queries.js';
+import {
+    Aspect,
+    Element,
+    Entity,
+    Meta,
+    Model,
+    Relationship,
+    Repository,
+    Source,
+} from './nodes.js';
+
+import {
+    childrenOfElement,
+    childrenOfModel,
+    modelOf,
+} from './queries.js';
 
 /**
  * This type is fed to the mapping functions, like {@link Sync#mapElement}, to let them know how to
  * map a `fir` type to an iTwin 'props' type.
+ *
+ * @internal
  */
-export type State = { state: 'update', id: bentley.Id64String } | { state: 'new' };
+type State = { state: 'update', id: bentley.Id64String } | { state: 'new' };
+
+/**
+ * A relationship is identified by a triple, not only by its ID? The relationship APIs require this
+ * (class, source, target) triple to delete a relationship, but only its class to update a
+ * relationship. But the update functionality seems broken, so we opt for deleting.
+ *
+ * @internal
+ */
+type RelationshipState = {
+    state: 'update',
+    id: bentley.Id64String,
+    fullClass: string, source: bentley.Id64String, target: bentley.Id64String
+} | { state: 'new' };
 
 /**
  * An element can either be new or changed, because the library relies on {@link Sync#put} to insert
  * an element if it does not exist. This type is returned by {@link Sync#changed}.
+ *
+ * @internal
  */
-export type Change = 'changed' | 'unchanged';
+type Change = 'changed' | 'unchanged';
+
+/**
+ * The result of reading a JSON tag.
+ *
+ * @internal
+ */
+type Read = {
+    success: true,
+    payload: unknown,
+} | {
+    success: false,
+};
 
 /**
  * A function type to map `fir`'s representation of branches in an iModel, like elements and models,
@@ -45,8 +88,8 @@ export function toElement<E extends Element>(sync: Sync, element: E): common.Ele
 
         const elementProps: common.ElementProps = {
             ...element,
-            model: sync.putModel(element.model), // The mapped model.
-            parent: undefined,                   // TODO: Hack. Prefer no property if no parent.
+            model: sync.put(element.model), // The mapped model.
+            parent: undefined,              // TODO: Hack. Prefer no property if no parent.
         };
 
         // Resolve the parent relationship. The parent must be inserted into the iModel before its
@@ -76,8 +119,8 @@ export function toElement<E extends Element>(sync: Sync, element: E): common.Ele
                 // an Element, not Omit<Element, 'root subject'>.
 
                 elementProps.parent = {
-                    id: sync.putElement(parent),
-                    relClassName: relationship ?? sync.resolveParentClass(parent),
+                    id: sync.put(parent),
+                    relClassName: relationship ?? resolveParentClass(parent),
                 };
             }
         }
@@ -85,11 +128,34 @@ export function toElement<E extends Element>(sync: Sync, element: E): common.Ele
         return elementProps;
 }
 
+/**
+ * Attempt to infer the relationship a child has with its parent element by inspecting its
+ * parent.
+ *
+ * A cinder block will probably outperform `fir` here as written. The difficulty comes from
+ * my lack of familiarity with BIS and how
+ * [RelatedElementProps](https://www.itwinjs.org/reference/core-common/entities/relatedelementprops)
+ * is handled internally, because the `relClassName` is allowed to be `undefined`. I don't know
+ * when it's necessary to specify this property. Inherited classes will have problems if the
+ * backend isn't inferring the relationship type from the schema.
+ */
+function resolveParentClass<E extends Element>(parent: E): string
+{
+    // Attempt to infer the class of the parent.
+
+    if (parent === 'root subject') {
+        // TODO: The only children of the root subject are partition elements?
+        return backend.SubjectOwnsPartitionElements.classFullName;
+    }
+
+    return backend.ElementOwnsChildElements.classFullName;
+}
+
 export function toSource<S extends Source>(sync: Sync, source: S): common.ExternalSourceProps
 {
     const sourceProps: common.ExternalSourceProps = {
         ...toElement(sync, source),
-        repository: source.repository ? { id: sync.putElement(source.repository) }: undefined,
+        repository: source.repository ? { id: sync.put(source.repository) }: undefined,
     };
 
     return sourceProps;
@@ -101,15 +167,28 @@ export function toModel<M extends Model>(sync: Sync, model: M)
         throw Error('fatal: cannot form props of repository model 💥');
     }
 
-    const modeledId = sync.putElement(model.modeledElement);
+    const modeledId = sync.put(model.modeledElement);
 
     const modelProps: common.ModelProps = {
         ...model,
-        parentModel: model.parentModel ? sync.putModel(model.parentModel) : undefined,
+        parentModel: model.parentModel ? sync.put(model.parentModel) : undefined,
         modeledElement: { id: modeledId },
     };
 
     return modelProps;
+}
+
+function toRelationship<R extends Relationship>(sync: Sync, relationship: R): common.RelationshipProps
+{
+    const sourceId = sync.put(relationship.source);
+    const targetId = sync.put(relationship.target);
+
+    const props: common.RelationshipProps = {
+        sourceId, targetId,
+        classFullName: relationship.classFullName,
+    };
+
+    return props;
 }
 
 export class Sync
@@ -122,11 +201,36 @@ export class Sync
      *
      * @see Sync#trim
      */
-    touched: Set<bentley.Id64String> = new Set();
+    private touched: Set<bentley.Id64String> = new Set();
+
+    /**
+     * Stores provenance information for relationships.
+     */
+    private store: Repository;
 
     constructor(imodel: backend.IModelDb)
     {
         this.imodel = imodel;
+
+        this.store = {
+            classFullName: backend.RepositoryLink.classFullName,
+            model: 'repository',
+            code: backend.RepositoryLink.createCode(
+                this.imodel, this.put('root subject'), 'fir-bookkeeping',
+            ),
+            meta: {
+                classFullName: backend.ExternalSourceAspect.classFullName,
+                scope: 'root subject',
+                version: '0.0.0-pitch',
+                kind: 'ts',
+                anchor: 'fir-bookkeeping',
+            },
+            url: 'https://github.com/jackson-at-bentley/fir',
+            description: "Please don't touch me. fir needs me for bookkeeping.",
+            to: toElement,
+        };
+
+        this.sync(this.store);
     }
 
     /**
@@ -148,16 +252,12 @@ export class Sync
         // See also: https://github.com/microsoft/TypeScript/pull/15256#discussion_r154843152
 
         if ('model' in branch) {
-            return this.syncElement(branch);
+            this.syncElement(branch);
+        } else if ('modeledElement' in branch) {
+            this.syncModel(branch);
+        } else {
+            throw Error('fatal: sync narrowing failure; this is a 🐛');
         }
-
-        // Ditto.
-
-        if ('modeledElement' in branch) {
-            return this.syncModel(branch);
-        }
-
-        throw Error('fatal: sync narrowing failure; this is a 🐛');
     }
 
     /**
@@ -167,7 +267,7 @@ export class Sync
      *
      * @see Sync#sync
      */
-    syncModel<M extends Model>(model: M): void
+    private syncModel<M extends Model>(model: M): void
     {
         if (model === 'repository') {
             return;
@@ -180,13 +280,13 @@ export class Sync
         }
     }
 
-    syncElement<E extends Element>(element: E): void
+    private syncElement<E extends Element>(element: E): void
     {
         if (element === 'root subject') {
             return;
         }
 
-        const elementId = this.putElement(element);
+        const elementId = this.put(element);
 
         if (this.changed(element) === 'changed') {
             this.mapElement(element, { state: 'update', id: elementId });
@@ -198,7 +298,7 @@ export class Sync
      * If the branch already exists `fir` will not attempt to insert it again. I like to think of
      * it like the shell program `touch`.
      */
-    put<B extends Element | Model>(branch: B): bentley.Id64String
+    put<B extends Element | Model| Relationship>(branch: B): bentley.Id64String
     {
         if (branch === 'repository') {
             return common.IModel.repositoryModelId;
@@ -222,10 +322,14 @@ export class Sync
             return this.putModel(branch);
         }
 
+        if ('source' in branch) {
+            return this.putRelationship(branch);
+        }
+
         throw Error('fatal: put narrowing failure; this is a 🐛');
     }
 
-    putModel<M extends Model>(model: M): bentley.Id64String
+    private putModel<M extends Model>(model: M): bentley.Id64String
     {
         if (model === 'repository') {
             return common.IModel.repositoryModelId;
@@ -241,9 +345,9 @@ export class Sync
         return this.mapModel(model, { state: 'new' });
     }
 
-    putElement<E extends Element>(element: E): bentley.Id64String
+    private putElement<E extends Element>(element: E): bentley.Id64String
     {
-        // TODO: Detect and report scope loops.
+        // TODO: Detect and report scope cycles.
 
         // Put a single element in the iModel. Its dependencies must be inserted:
         // - All parents of the element, up to the root subject
@@ -253,7 +357,7 @@ export class Sync
             return common.IModel.rootSubjectId;
         }
 
-        let { elementId } = this.getExternalAspect(element);
+        let { elementId } = this.meta(element);
 
         if (!elementId) {
             // The element does not exist in the iModel. Map the intermediate representation to
@@ -266,54 +370,162 @@ export class Sync
     }
 
     /**
+     * > Note that neither Models nor Aspects may be the source nor target of relationships in the
+     * > link table, and therefore Models and Aspects cannot be involved in relationships with
+     * > properties or relationships with (*..*) multiplicity.
+     *
+     * The {@link nodes!Relationship} type represents
+     * [link-table relationships](https://www.itwinjs.org/bis/intro/relationship-fundamentals/#link-table).
+     */
+    private putRelationship<R extends Relationship>(relationship: R): bentley.Id64String
+    {
+        let id: bentley.Id64String;
+
+        const read = this.readTag(
+            this.store, relationship.anchor
+        );
+
+        type RelationshipMeta = { id: string, fullClass: string, source: string, target: string };
+
+        let found: RelationshipMeta | null;
+        if (read.success) {
+            found = read.payload as RelationshipMeta;
+        } else {
+            found = null;
+        }
+
+        const fullClass = relationship.classFullName;
+        const sourceId = this.put(relationship.source);
+        const targetId = this.put(relationship.target);
+
+        if (!found) {
+            id = this.mapRelationship(relationship, { state: 'new' });
+
+            // Tag the related elements so that the relationship in fir's store can be deleted if
+            // either of the elements is deleted. The entry in the link table is deleted
+            // automatically. I think.
+            this.tag(relationship.source, relationship.anchor, null);
+            this.tag(relationship.target, relationship.anchor, null);
+
+            this.tag(this.store, relationship.anchor, {
+                id, fullClass,
+                source: sourceId, target: targetId
+            });
+        } else if (fullClass === found.fullClass && sourceId === found.source && targetId === found.source) {
+            // No change has been made to the relationship. This means we've encountered the same
+            // relationship and should just return its ID.
+            id = found.id;
+        } else {
+            // Tag the related elements so that the relationship can be deleted if either of the
+            // elements is deleted.
+
+            if (sourceId !== found.source) {
+                // The source has moved.
+                this.cutTag(found.source, relationship.anchor);
+                this.tag(relationship.source, relationship.anchor, null);
+            }
+
+            if (targetId !== found.target) {
+                // The target has moved.
+                this.cutTag(found.target, relationship.anchor);
+                this.tag(relationship.target, relationship.anchor, null);
+            }
+
+            id = this.mapRelationship(relationship, {
+                state: 'update',
+                id: found.id,
+                fullClass: found.fullClass, source: found.source, target: found.target
+            });
+
+            this.tag(this.store, relationship.anchor, {
+                id, fullClass,
+                source: sourceId, target: targetId
+            });
+        }
+
+        return id;
+    }
+
+    /**
      * Map `fir`'s representation of a model to its iTwin 'props' type. The {@link State} type is
      * required because the iTwin libraries require an ID for an update operation. The mapping
      * functions aren't responsible for providing that ID; that's {@link Sync#sync}'s job.
+     *
+     * @internal
      */
-    mapModel<M extends Model>(model: M, state: State): bentley.Id64String
+    private mapModel<M extends Model>(model: M, state: State): bentley.Id64String
     {
         if (model === 'repository') {
             return common.IModel.repositoryModelId;
         }
 
         const modelProps = model.to(this, model);
+        const json: Json = modelProps.jsonProperties;
 
         let modelId: bentley.Id64String;
 
         if (state.state === 'update') {
             modelId = modelProps.id = state.id;
+
+            // Merge the user's JSON with the JSON properties of the element.
+            const found = this.imodel.models.getModelProps(state.id);
+            modelProps.jsonProperties = mergeJson(json, found.jsonProperties);
+
             this.imodel.models.updateModel(modelProps);
         } else {
+            // Wrap the user's JSON properties in the user namespace.
+            // if (json) {
+            //     modelProps.jsonProperties = {
+            //         UserProps: json,
+            //     };
+            // }
+
             modelId = this.imodel.models.insertModel(modelProps);
         }
 
         return modelId;
     }
 
-    mapElement<E extends Element>(element: E, state: State): bentley.Id64String
+    /**
+     * @internal
+     */
+    private mapElement<E extends Element>(element: E, state: State): bentley.Id64String
     {
         if (element === 'root subject') {
             return common.IModel.rootSubjectId;
         }
 
         const elementProps = element.to(this, element);
+        const json: { [property: string]: unknown } | undefined = elementProps.jsonProperties;
 
         let elementId: bentley.Id64String;
 
         if (state.state === 'update') {
             elementId = elementProps.id = state.id;
+
+            // Merge the user's JSON with the JSON properties of the element.
+            const found = this.imodel.elements.getElementProps(state.id);
+            elementProps.jsonProperties = mergeJson(json, found.jsonProperties);
+
             this.imodel.elements.updateElement(elementProps);
         } else {
+            // Wrap the user's JSON properties in the user namespace.
+            // if (json) {
+            //     elementProps.jsonProperties = {
+            //         UserProps: json,
+            //     };
+            // }
+
             elementId = this.imodel.elements.insertElement(elementProps);
         }
 
         const meta = element.meta;
 
-        const externalAspectProps = this.mapExternalAspect(elementId, meta);
+        const externalAspectProps = this.toExternalAspect(elementId, meta);
 
         if (state.state === 'update') {
             // Bypass the aspect API; currently no way to obtain the ID of an aspect.
-            const { aspectId } = this.getExternalAspect(element);
+            const { aspectId } = this.meta(element);
             externalAspectProps.id = aspectId;
             this.imodel.elements.updateAspect(externalAspectProps);
         } else {
@@ -336,7 +548,7 @@ export class Sync
         }
 
         for (const aspect of element.aspects ?? []) {
-            const aspectProps = this.mapAspect(elementId, aspect);
+            const aspectProps = this.toAspect(elementId, aspect);
             this.imodel.elements.insertAspect(aspectProps);
         }
 
@@ -352,14 +564,20 @@ export class Sync
      * traverse backwards from our aspect type to our element type.
      *
      * This design decision also means we can't use `to` functions with aspects, because we'd have
-     * to supply the ID of the owning element. This is a reasonable restriction unless you want
-     * to relate aspects for some reason. Because all BIS relationships must inherit from those in
-     * the core, and at the time of writing none relate aspects, we're okay.
+     * to supply the ID of the owning element.
+
+     * > Aspects are only allowed as the source of relationships behind navigational properties, or
+     * > as the target of element-owns-aspect relationships.
+
+     * [Here's my source](https://www.itwinjs.org/bis/intro/relationship-fundamentals/#supported-relationship-capabilities)
+     * for that quote, straight from Casey.
      *
-     * [Here's my source](https://www.itwinjs.org/bis/intro/relationship-fundamentals/#introduction)
-     * for that last statement, straight from Casey.
+     * We're already handling the latter, and but I _think_ the former means that aspects are
+     * allowed to have navigation properties, which will not be supported until the iTwin APIs allow
+     * you to locate the ID of an aspect you've inserted. Then we'll have to decouple the aspect
+     * type from the external aspect type, and make it point to the element, and not vice versa.
      */
-    mapExternalAspect(elementId: bentley.Id64String, meta: Meta): common.ExternalSourceAspectProps
+    private toExternalAspect(elementId: bentley.Id64String, meta: Meta): common.ExternalSourceAspectProps
     {
         // Resolve the scope. Because every element except the root subject has an external source
         // aspect, the scope path of any element must eventually terminate at the root subject, an
@@ -371,18 +589,40 @@ export class Sync
             ...meta,
             classFullName: backend.ExternalSourceAspect.classFullName,
             element: { id: elementId },
-            scope: { id: this.putElement(meta.scope) },
-            source: meta.source ? { id: this.putElement(meta.source) } : undefined,
+            scope: { id: this.put(meta.scope) },
+            source: meta.source ? { id: this.put(meta.source) } : undefined,
             identifier: meta.anchor,
         };
     }
 
-    mapAspect<A extends Aspect>(elementId: bentley.Id64String, aspect: A): common.ElementAspectProps
+    private toAspect<A extends Aspect>(elementId: bentley.Id64String, aspect: A): common.ElementAspectProps
     {
         return {
             ...aspect,
             element: { id: elementId },
         };
+    }
+
+    /**
+     * @internal
+     */
+    private mapRelationship<R extends Relationship>(relationship: R, state: RelationshipState): bentley.Id64String
+    {
+        const props = toRelationship(this, relationship);
+
+        if (state.state === 'update') {
+            // This doesn't seem to be working.
+            // this.imodel.relationships.updateInstance(props);
+
+            this.imodel.relationships.deleteInstance({
+                id: state.id,
+                classFullName: state.fullClass,
+                sourceId: state.source,
+                targetId: state.target,
+            });
+        }
+
+        return this.imodel.relationships.insertInstance(props);
     }
 
     /**
@@ -395,19 +635,21 @@ export class Sync
      * know that the element is brand new, but this information is not exposed by {@link Sync#put}.
      * As far as this function is concerned the new element has existed for all eternity. I'm not
      * sure if the simplicity of the {@link Sync#put} interface is worth the wasted iModel query.
+     *
+     * @internal
      */
-    changed<E extends Element>(element: E): Change
+    private changed<E extends Element>(element: E): Change
     {
         if (element === 'root subject') {
             return 'unchanged';
         }
 
         // After put-ting the element in the IModel, we know it is either changed or unchanged.
-        this.putElement(element);
+        this.put(element);
 
         const meta = element.meta;
 
-        const { elementId, aspectId } = this.getExternalAspect(element);
+        const { elementId, aspectId } = this.meta(element);
 
         if (elementId === undefined || aspectId === undefined) {
             throw Error('fatal: element was put and must have an aspect; this is a 🐛');
@@ -435,29 +677,6 @@ export class Sync
     }
 
     /**
-     * Attempt to infer the relationship a child has with its parent element by inspecting its
-     * parent.
-     *
-     * A cinder block will probably outperform `fir` here as written. The difficulty comes from
-     * my lack of familiarity with BIS and how
-     * [RelatedElementProps](https://www.itwinjs.org/reference/core-common/entities/relatedelementprops)
-     * is handled internally, because the `relClassName` is allowed to be `undefined`. I don't know
-     * when it's necessary to specify this property. Inherited classes will have problems if the
-     * backend isn't inferring the relationship type from the schema.
-     */
-    resolveParentClass<E extends Element>(parent: E): string
-    {
-        // Attempt to infer the class of the parent.
-
-        if (parent === 'root subject') {
-            // TODO: The only children of the root subject are partition elements?
-            return backend.SubjectOwnsPartitionElements.classFullName;
-        }
-
-        return backend.ElementOwnsChildElements.classFullName;
-    }
-
-    /**
      * Given a subtree of the iModel, delete any elements and models that have not been seen by
      * the synchronizer and whose child elements have not been seen.
      */
@@ -467,7 +686,7 @@ export class Sync
         return this.trimTree(branchId);
     }
 
-    trimTree(branch: bentley.Id64String): common.IModelStatus
+    private trimTree(branch: bentley.Id64String): common.IModelStatus
     {
         // There are only two kinds of elements in BIS: modeled elements and parent elements.
         // See also: https://www.itwinjs.org/bis/intro/modeling-with-bis/#relationships
@@ -508,7 +727,12 @@ export class Sync
             }
 
             if (isElement && remainingChildren.length === 0 && !this.touched.has(branch)) {
+                this.trimRelationship(branch);
+
                 const element = this.imodel.elements.getElement(branch);
+
+                console.log(`Deleting element ${element.id} :: ${element.className}; ${element.userLabel}`);
+
                 if (element instanceof backend.DefinitionElement) {
                     // TODO: This is inefficient, but I'm trying to avoid prematurely optimizing. If
                     // we need to, we can locate the youngest common ancestor of the definition
@@ -524,6 +748,8 @@ export class Sync
                 // TODO: Should we ignore the dictionary model because we can't delete it? This will
                 // explode, just like deleting the repository model.
 
+                console.log(`Deleting model ${model.id} :: ${model.className}`);
+
                 this.imodel.models.deleteModel(model.id);
                 this.imodel.elements.deleteElement(branch);
             }
@@ -533,22 +759,190 @@ export class Sync
     }
 
     /**
+     * Only elements can be involved in link-table relationships. Because `fir` maintains the
+     * provenance information of each link-table relationship in its store, a special repository
+     * link, we have to make sure that when a link-table relationship is implicitly deleted we
+     * remove that provenance / anchor from the store. This is inefficient however, because it means
+     * that every time we delete an element we have to retrieve and parse its JSON properties, which
+     * may be massive. The alternative is taking a linear pass over the store and searching for
+     * each relationship to see if it exists every time the connector author calls
+     * { @link Sync#trim }.
+     *
+     * @internal
+     */
+    private trimRelationship(element: bentley.Id64String): void
+    {
+        const readSource = this.readTag(element);
+
+        if (readSource.success) {
+            // For now assume that every tag on an element is a relationship anchor.
+            // TODO: This will change when the aspect API allows us to keep track of aspects. Then
+            // tags will have to be further namespaced within the 'fir' namespace.
+
+            const source = readSource.payload as { [anchor: string]: null };
+            const anchors = Object.keys(source);
+
+            if (anchors.length === 0) {
+                // This element had no relationships, we are done.
+                return;
+            }
+
+            this.cutTag(element, anchors);
+
+            // Now for each link-table relationship that involves this element, locate the related
+            // element and remove the anchor for the relationship. Delete the provenance in the
+            // store.
+
+            for (const anchor of anchors) {
+                const readRelationship = this.readTag(this.store, anchor);
+
+                if (!readRelationship.success) {
+                    throw Error('fatal: read relationship anchor in element but not in store; this is a 🐛');
+                }
+
+                type Related = { target: string };
+
+                const related = readRelationship.payload as Related;
+
+                this.cutTag(this.store, anchor);
+                this.cutTag(related.target, anchor);
+            }
+        }
+    }
+
+    /**
      * Given a `fir` element, fetch its external source aspect from the iModel.
      */
-    getExternalAspect<E extends Element>(element: E): ReturnType<typeof backend.ExternalSourceAspect.findBySource>
+    meta<E extends Element>(element: E): ReturnType<typeof backend.ExternalSourceAspect.findBySource>
     {
         if (element === 'root subject') {
             throw Error('fatal: no external aspect on the root subject 💥');
         }
 
         const meta = element.meta;
-        const scope = this.putElement(meta.scope);
+        const scope = this.put(meta.scope);
 
         return backend.ExternalSourceAspect.findBySource(
             this.imodel,
             scope, meta.kind, meta.anchor
         );
     }
+
+    /**
+     * Tag an element with a key-value pair in its JSON properties. If the key already exists, it
+     * will be written over.
+     */
+    private tag<E extends Element>(element: E, key: string, value: unknown): void
+    {
+        if (element === 'root subject') {
+            throw Error('fatal: cannot tag root subject 💥');
+        }
+
+        const found = this.imodel.elements.getElementProps(this.put(element));
+
+        let json: Json = found.jsonProperties;
+
+        if (json === undefined) {
+            // There are no JSON properties on the element.
+            json = { fir: {} };
+        } else if (json.fir === undefined) {
+            // There are JSON properties, but no 'fir' namespace.
+            json.fir = { };
+        }
+
+        const fir = json.fir as { [property: string] : unknown };
+
+        fir[key] = value;
+
+        this.imodel.elements.updateElement({
+            id: this.put(element),
+            model: this.put(element.model),
+            code: element.code,
+            classFullName: element.classFullName,
+            jsonProperties: json,
+        });
+    }
+
+    /**
+     * Remove key-value pair tag from an element' JSON properties. If the key does not exist, this
+     * is a nop.
+     */
+    private cutTag<E extends Element>(element: E | bentley.Id64String, key: string | string[]): void
+    {
+        if (element === 'root subject') {
+            throw Error('fatal: cannot untag root subject 💥');
+        }
+
+        const id = typeof element === 'string' && element !== 'root subject' ? element : this.put(element);
+        const found = this.imodel.elements.getElementProps(id);
+
+        const json: Json = found.jsonProperties;
+
+        if (json === undefined || json.fir === undefined) {
+            // There are no JSON properties on the element or no `fir` namespace.
+            return;
+        }
+
+        const fir = json.fir as { [property: string] : unknown };
+
+        const staged = typeof key === 'string' ? [ key ] : key;
+        staged.forEach(key => delete fir[key]);
+
+        this.imodel.elements.updateElement({
+            ...found,
+            jsonProperties: json,
+        });
+    }
+
+    /**
+     * Retrieve a tag in `fir`'s namespace. If the tag does not exist, null is returned.
+     *
+     * @internal
+     */
+    private readTag<E extends Element>(element: E | bentley.Id64String, key?: string): Read
+    {
+        if (element === 'root subject') {
+            throw Error('fatal: cannot tag root subject 💥');
+        }
+
+        const id = typeof element === 'string' && element !== 'root subject' ? element : this.put(element);
+        const found = this.imodel.elements.getElementProps(id);
+
+        const json: Json = found.jsonProperties;
+
+        if (!(json && json.fir)) {
+            // No JSON properties on this element, or no fir namespace.
+            return { success: false };
+        }
+
+        const fir = json.fir as { [property: string] : unknown };
+
+        if (key && fir[key] === undefined) {
+            return { success: false };
+        }
+
+        return { success: true, payload: key ? fir[key] : json.fir };
+    }
+}
+
+type UserJson = { [property: string]: unknown } | undefined;
+type Json = { [namespace: string]: unknown } | undefined;
+
+function mergeJson(user: UserJson, existing: Json): Json
+{
+    // if (user) {
+    //     existing.UserProps = user;
+    // } else {
+    //     delete existing.UserProps;
+    // }
+
+    if (!existing) {
+        existing = user;
+    } else if (user) {
+        Object.assign(existing, user);
+    }
+
+    return existing;
 }
 
 function foldStatus(folded: common.IModelStatus, addition: common.IModelStatus): common.IModelStatus

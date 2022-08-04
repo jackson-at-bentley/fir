@@ -11,8 +11,20 @@ import * as backend from '@itwin/core-backend';
 import * as common from '@itwin/core-common';
 import * as geometry from '@itwin/core-geometry';
 
-import { Element, Model, Meta, Source, Repository } from '../src/nodes.js';
-import { Sync, toElement, toModel, toSource } from '../src/sync.js';
+import {
+    Element,
+    Meta,
+    Model,
+    Repository,
+    Source,
+} from '../src/nodes.js';
+
+import {
+    Sync,
+    toElement,
+    toModel,
+    toSource,
+} from '../src/sync.js';
 
 import * as elements from './test-connector-elements.js';
 import * as models from './test-connector-models.js';
