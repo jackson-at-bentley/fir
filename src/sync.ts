@@ -21,6 +21,7 @@ import {
 import {
     childrenOfElement,
     childrenOfModel,
+    isManaged,
     modelOf,
 } from './queries.js';
 
@@ -717,7 +718,7 @@ export class Sync
         // TODO: This if statement throws. We can't recover from this, so we let it explode the
         // process. Can this leave the iModel in an inconsistent state?
 
-        if (childrenStatus === common.IModelStatus.Success) {
+        if (childrenStatus === common.IModelStatus.Success && isManaged(this.imodel, branch)) {
             let remainingChildren: bentley.Id64String[];
 
             if (isElement) {
@@ -731,7 +732,7 @@ export class Sync
 
                 const element = this.imodel.elements.getElement(branch);
 
-                console.log(`Deleting element ${element.id} :: ${element.className}; ${element.userLabel}`);
+                // console.log(`Deleting element ${element.id} :: ${element.className}; ${element.userLabel}`);
 
                 if (element instanceof backend.DefinitionElement) {
                     // TODO: This is inefficient, but I'm trying to avoid prematurely optimizing. If
@@ -748,7 +749,7 @@ export class Sync
                 // TODO: Should we ignore the dictionary model because we can't delete it? This will
                 // explode, just like deleting the repository model.
 
-                console.log(`Deleting model ${model.id} :: ${model.className}`);
+                // console.log(`Deleting model ${model.id} :: ${model.className}`);
 
                 this.imodel.models.deleteModel(model.id);
                 this.imodel.elements.deleteElement(branch);

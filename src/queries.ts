@@ -15,7 +15,7 @@ import * as common from '@itwin/core-common';
  */
 export function modelOf(imodel: backend.IModelDb, modeled: bentley.Id64String): bentley.Id64String | null
 {
-    const query = 'select ECInstanceId from bis:Model where ModeledElement.id=?';
+    const query = 'select ECInstanceId from bis:Model where ModeledElement.id= ? ';
 
     return imodel.withPreparedStatement(query, (statement) => {
         statement.bindId(1, modeled);
@@ -40,17 +40,18 @@ export function modelOf(imodel: backend.IModelDb, modeled: bentley.Id64String): 
  */
 export function childrenOfModel(imodel: backend.IModelDb, model: bentley.Id64String): bentley.Id64String[]
 {
-  const elements: bentley.Id64String[] = [];
   const query = 'select ECInstanceId from bis:Element where Model.id=? and Parent is NULL';
 
-  imodel.withPreparedStatement<void>(query, (statement) => {
+    return imodel.withPreparedStatement(query, (statement) => {
+        const elements: bentley.Id64String[] = [];
+
         statement.bindId(1, model);
         for (const row of statement) {
             elements.push(row.id);
         }
-    });
 
-  return elements;
+        return elements;
+    });
 }
 
 /**
@@ -61,17 +62,43 @@ export function childrenOfModel(imodel: backend.IModelDb, model: bentley.Id64Str
  */
 export function childrenOfElement(imodel: backend.IModelDb, element: bentley.Id64String): bentley.Id64String[]
 {
-    const elements: bentley.Id64String[] = [];
-    const query = "select ECInstanceId from bis:Element as e where e.Parent.id=?";
+    const query = 'select ECInstanceId from bis:Element where Parent.id = ?';
 
-    imodel.withPreparedStatement<void>(query, (statement) => {
+    return imodel.withPreparedStatement(query, (statement) => {
+        const elements: bentley.Id64String[] = [];
+
         statement.bindId(1, element);
         for (const row of statement) {
             elements.push(row.id);
         }
-    });
 
-    return elements;
+        return elements;
+    });
+}
+
+/**
+ * Is this element managed by `fir`? In other words, does it have an external source aspect? If it
+ * doesn't, `fir` absolutely should not delete it. As far as `fir` is concerned, it doesn't exist.
+ * @param imodel
+ * @param element The element to inspect.
+ * @returns Does the element have at least one external source aspect?
+ */
+export function isManaged(imodel: backend.IModelDb, element: bentley.Id64String): boolean
+{
+    const query = 'select count(*) from bis:ExternalSourceAspect where Element.id = ?';
+
+    return imodel.withPreparedStatement(query, (statement) => {
+        statement.bindId(1, element);
+        statement.step();
+
+        const count = statement.getValue(0);
+
+        if (count.isNull) {
+            return false;
+        }
+
+        return count.getInteger() > 0;
+    });
 }
 
 /**
@@ -89,6 +116,7 @@ export function findElements<E extends common.EntityProps>(imodel: backend.IMode
     return imodel.withPreparedStatement(query, (statement) => {
         const entities: E[] = [];
 
+        // statement.bindString(1, kind);
         for (const element of statement) {
             entities.push(element);
         }

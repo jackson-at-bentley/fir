@@ -1,13 +1,14 @@
 {
   "name": "fir-for-connectors",
   "description": "Map source files to an iModel",
-  "version": "0.0.0-pitch.12",
+  "version": "0.0.0-pitch.13",
   "homepage": "https://github.com/jackson-at-bentley/fir",
   "bugs": "https://github.com/jackson-at-bentley/fir/issues",
   "keywords": [
     "bentley",
     "itwin",
     "connector",
+    "bim",
     "pcf"
   ],
   "main": "index.js",

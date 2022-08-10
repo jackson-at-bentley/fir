@@ -1,5 +1,7 @@
 # 🌲 fir
 
+![Coveralls coverage badge](https://img.shields.io/coveralls/github/jackson-at-bentley/fir?color=green&logo=coveralls&style=flat-square) ![NPM version badge](https://img.shields.io/npm/v/fir-for-connectors?color=yellowgreen&logo=npm&style=flat-square)
+
 ## What?
 
 An experimental, declarative synchronizer for iTwin connectors that aims to modify the existing types in the iTwin library as little as possible. For use as a drop-in replacement of the synchronizer in iTwin's connector framework.

@@ -448,4 +448,54 @@ describe('sync', () => {
 
         pine.put(ship);
     });
+
+    it("link-table relationship cannot relate parent and child", () => {
+        const fir = new Sync(imodel);
+
+        const partition: Element<common.InformationPartitionElementProps> = {
+            classFullName: backend.LinkPartition.classFullName,
+            code: common.Code.createEmpty(),
+            model: 'repository',
+            parent: 'root subject',
+            meta: meta('partition', '1.0.0', 'root subject'),
+            to: toElement,
+        };
+
+        const model: Model<common.ModelProps> = {
+            classFullName: backend.LinkModel.classFullName,
+            modeledElement: partition,
+            parentModel: 'repository',
+            to: toModel,
+        };
+
+        const folder: Element<common.UrlLinkProps> = {
+            classFullName: backend.FolderLink.classFullName,
+            code: common.Code.createEmpty(),
+            model,
+            meta: meta('folder', '1.0.0', partition),
+            to: toElement,
+        };
+
+        const url: Element<common.UrlLinkProps> = {
+            classFullName: backend.UrlLink.classFullName,
+            code: common.Code.createEmpty(),
+            model,
+            meta: meta('link', '1.0.0', partition),
+            to: toElement,
+        };
+
+        fir.sync(folder), fir.sync(url);
+
+        const folderOwnsUrl: Relationship = {
+            classFullName: backend.ElementOwnsChildElements.classFullName,
+            source: folder,
+            target: url,
+            anchor: 'folderOwnsUrl',
+        };
+
+        assert.throws(
+            () => fir.put(folderOwnsUrl),
+            /should be subclass of BisCore:ElementRefersToElements/i,
+        );
+    });
 });

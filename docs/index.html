@@ -14,6 +14,7 @@
 <a href="#🌲-fir" id="🌲-fir" style="color: inherit; text-decoration: none;">
   <h1>🌲 fir</h1>
 </a>
+<p><img src="https://img.shields.io/coveralls/github/jackson-at-bentley/fir?color=green&logo=coveralls&style=flat-square" alt="Coveralls coverage badge"> <img src="https://img.shields.io/npm/v/fir-for-connectors?color=yellowgreen&logo=npm&style=flat-square" alt="NPM version badge"></p>
 
 <a href="#what" id="what" style="color: inherit; text-decoration: none;">
   <h2>What?</h2>
@@ -73,7 +74,7 @@
 </ol>
 </li>
 </ul>
-<p><img src="https://github.com/jackson-at-bentley/fir/blob/main/images/cycle.png?raw=true" alt="A diagram of the iModel described in the second caveat"></p>
+<p><img src="https://github.com/jackson-at-bentley/fir/blob/main/images/cycle.svg?raw=true" alt="A diagram of the iModel described in the second caveat"></p>
 
 <a href="#getting-started-🌱" id="getting-started-🌱" style="color: inherit; text-decoration: none;">
   <h2>Getting started 🌱</h2>
@@ -164,7 +165,7 @@ nodes.ts(53, 5): &#39;to&#39; is declared here.
 <p>Finally, we have to tell <code>fir</code> how to map this new intermediate type to its &#39;props&#39; type in the iTwin library. This is done with a <code>to</code> function as I mentioned earlier.</p>
 <p>First, we call <code>toElement</code>, which you&#39;ll remember from all the elements we made above. This turns <code>fir</code>&#39;s element type <code>Element</code> into <code>ElementProps</code>. We dump it into our <code>ExternalSourceAttachmentProps</code> and add the <code>attaches</code> property to complete the type. We make use of <code>put</code> to get the ID of the external source this element refers to.</p>
 <p>This process can be kind of dangerous, and I&#39;m still searching for a better design. Here&#39;s why.</p>
-<p><img src="https://github.com/jackson-at-bentley/fir/blob/main/images/types-tree.png?raw=true" alt="A diagram of fir&#39;s type tree. Caption reads, &quot;Dashed nodes are convenience types with the type argument defaulted; solid nodes are used when extending the library. The node at the tail of an arrow is a supertype of the node at the head.&quot;"></p>
+<p><img src="https://github.com/jackson-at-bentley/fir/blob/main/images/types-tree.svg?raw=true" alt="A diagram of fir&#39;s type tree. Caption reads, &quot;Dashed nodes are convenience types with the type argument defaulted; solid nodes are used when extending the library. The node at the tail of an arrow is a supertype of the node at the head.&quot;"></p>
 <p>It turns out we got lucky with this example. When we call <code>toElement</code> we&#39;re trying to assign our <code>ExternalSourceAttachment</code> type to an <code>Element</code> type. This would be a beautiful case of type narrowing if it weren&#39;t for the <code>to</code> properties on the two types. In TypeScript, if you assign a function <code>f</code> to another function <code>g</code> by writing <code>g = f</code>, the function <code>f</code> must have at most as large a domain as <code>g</code>, because functions that have type <code>typeof g</code> give no indication that they do anything with the excess input, like our <code>attaches</code> property. They may even explode. In our case <code>toElement</code> will happily dump everything it receives into the <code>ElementProps</code>.</p>
 <p>If the BIS specifications said that the <code>attaches</code> relationship is mandatory, we&#39;d have a problem. <code>Element</code>&#39;s <code>to</code> type doesn&#39;t allow that property. We can use <code>as unknown as Element</code> to tell TypeScript that we&#39;re sure the <code>to</code> function will never be invoked without an <code>attachment</code> property.</p>
 <p>A better solution is a utility function to safely perform the extraction.</p>
