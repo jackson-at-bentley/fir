@@ -1,6 +1,6 @@
 # 🌲 fir
 
-![Coveralls coverage badge](https://img.shields.io/coveralls/github/jackson-at-bentley/fir?color=green&logo=coveralls&style=flat-square) ![NPM version badge](https://img.shields.io/npm/v/fir-for-connectors?color=yellowgreen&logo=npm&style=flat-square)
+[![Coveralls coverage badge](https://img.shields.io/coveralls/github/jackson-at-bentley/fir?color=green&logo=coveralls&style=flat-square)](https://coveralls.io/github/jackson-at-bentley/fir) [![NPM version badge](https://img.shields.io/npm/v/fir-for-connectors?color=yellowgreen&logo=npm&style=flat-square)](https://www.npmjs.com/package/fir-for-connectors)
 
 ## What?
 
