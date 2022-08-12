@@ -497,6 +497,23 @@ describe('sync', () => {
             () => fir.put(folderOwnsUrl),
             /should be subclass of BisCore:ElementRefersToElements/i,
         );
+
+        url.parent = folder;
+        url.meta = meta('link', '1.0.0-parent', partition),
+
+        // Navigation property okay though because iTwin API.
+
+        fir.sync(url);
+
+        // TODO: Why the period?
+        const found: common.UrlLinkProps | undefined
+            = findElements<common.UrlLinkProps>(fir.imodel, backend.UrlLink.classFullName)[0];
+
+        assert.exists(found);
+        assert.exists(found.parent);
+
+        assert.strictEqual(found.parent!.id, fir.put(folder));
+        assert.strictEqual(found.parent!.relClassName, 'BisCore.ElementOwnsChildElements');
     });
 
     it('elements cannot have the same external identifier', () => {
