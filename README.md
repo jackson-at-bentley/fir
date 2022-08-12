@@ -40,7 +40,7 @@ const linkPartition: Element<InformationPartitionElementProps> = {
 
 I've been [rather vocal](https://github.com/iTwin/connector-framework/pull/55) about the usability of the API of the synchronizer that ships with `@itwin/connector-framework`. This is an internship project and I have no expectation that it be maintained. I had an idea for how I wanted a synchronizer to work and I also wanted to use it, and that required writing it.
 
-`fir` is _only_ a synchronizer. Its synchronization module is just over 400 lines of code. `fir` makes no attempt to be a complete solution to connectors like `pcf`, and it doesn't help you run your connector like `connector-framework`. It's designed to be dropped into the connector framework, and doesn't replace it.
+`fir` is _only_ a synchronizer. Its synchronization module is just under 1,000 lines of code including whole paragraphs of JSDoc and ample whitespace. `fir` makes no attempt to be a complete solution to connectors like `pcf`, and it doesn't help you run your connector like `connector-framework`. It's designed to be dropped into the connector framework, and doesn't replace it.
 
 ### Benefits
 

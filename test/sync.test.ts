@@ -449,7 +449,7 @@ describe('sync', () => {
         pine.put(ship);
     });
 
-    it("link-table relationship cannot relate parent and child", () => {
+    it('link-table relationship cannot relate parent and child', () => {
         const fir = new Sync(imodel);
 
         const partition: Element<common.InformationPartitionElementProps> = {
@@ -496,6 +496,48 @@ describe('sync', () => {
         assert.throws(
             () => fir.put(folderOwnsUrl),
             /should be subclass of BisCore:ElementRefersToElements/i,
+        );
+    });
+
+    it('elements cannot have the same external identifier', () => {
+        const one: Element<common.UrlLinkProps> = {
+            classFullName: backend.UrlLink.classFullName,
+            code: common.Code.createEmpty(),
+            model: 'repository',
+            meta: meta('link', '1.0.0', 'root subject'),
+            description: 'draft',
+            to: toElement,
+        };
+
+        const two: Element<common.UrlLinkProps> = {
+            classFullName: backend.UrlLink.classFullName,
+            code: common.Code.createEmpty(),
+            model: 'repository',
+            meta: meta('link', '1.0.0', 'root subject'),
+            description: 'napkin drawing',
+            to: toElement,
+        };
+
+        const three: Element<common.UrlLinkProps> = {
+            classFullName: backend.UrlLink.classFullName,
+            code: common.Code.createEmpty(),
+            model: 'repository',
+            meta: meta('link', '1.0.0', 'root subject'),
+            description: 'render',
+            to: toElement,
+        };
+
+        const fir = new Sync(imodel);
+        [ one, two, three ].forEach(fir.sync.bind(fir));
+
+        const foundId = fir.meta(one).elementId;
+        assert.exists(foundId);
+        const found = fir.imodel.elements.getElementProps<common.UrlLinkProps>(foundId!);
+        assert.strictEqual(found.description, 'draft');
+
+        assert.strictEqual(
+            findElements<common.UrlLinkProps>(fir.imodel, backend.UrlLink.classFullName).length,
+            1
         );
     });
 });
