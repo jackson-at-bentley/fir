@@ -29,6 +29,15 @@ import {
 
 import { findElements } from '../src/queries.js';
 
+import { nestedDefinitionModels } from './playthings.js';
+
+const count = (imodel: backend.IModelDb, query: string, times: number): void => {
+    imodel.withStatement<void>(query, (statement) => {
+        statement.step();
+        assert.strictEqual(statement.getValue(0).getInteger(), times);
+    });
+};
+
 describe('sync', () => {
     const name = 'my-first-imodel';
     const root = path.dirname(url.fileURLToPath(import.meta.url));
@@ -58,13 +67,6 @@ describe('sync', () => {
         fs.rmSync(imodelPath, { maxRetries: 2, retryDelay: 2 * 1000 });
     });
 
-    type Plaything = {
-        partition: Element<common.InformationPartitionElementProps>,
-        model: Model<common.ModelProps>,
-        nationalGeographic: Element<common.UrlLinkProps>,
-        nasa: Element<common.UrlLinkProps>,
-    };
-
     function meta<E extends Element>(anchor: string, version: string, scope: E, source?: Source): Meta {
         return {
             classFullName: backend.ExternalSourceAspect.classFullName,
@@ -76,7 +78,7 @@ describe('sync', () => {
         };
     }
 
-    function plaything(): Plaything {
+    it('sync and trim a toy imodel', () => {
         const repository: Repository = {
             classFullName: backend.RepositoryLink.classFullName,
             code: common.Code.createEmpty(),
@@ -97,7 +99,7 @@ describe('sync', () => {
             to: toSource,
         };
 
-        const linkPartition: Element<common.InformationPartitionElementProps> = {
+        const partition: Element<common.InformationPartitionElementProps> = {
             classFullName: backend.LinkPartition.classFullName,
             code: common.Code.createEmpty(),
             model: 'repository',
@@ -107,17 +109,17 @@ describe('sync', () => {
             to: toElement,
         };
 
-        const linkModel: Model<common.ModelProps> = {
+        const model: Model<common.ModelProps> = {
             classFullName: backend.LinkModel.classFullName,
             parentModel: 'repository',
-            modeledElement: linkPartition,
+            modeledElement: partition,
             to: toModel,
         };
 
         const nationalGeographic: Element<common.UrlLinkProps> = {
             classFullName: backend.UrlLink.classFullName,
             code: common.Code.createEmpty(),
-            model: linkModel,
+            model,
             meta: meta('national geographic', '1.0.0', repository, source),
             description: 'the homepage of national geographic',
             url: 'https://nationalgeographic.com',
@@ -127,22 +129,13 @@ describe('sync', () => {
         const nasa: Element<common.UrlLinkProps> = {
             classFullName: backend.UrlLink.classFullName,
             code: common.Code.createEmpty(),
-            model: linkModel,
+            model,
             meta: meta('nasa', '1.0.0', repository, source),
             description: 'the homepage of nasa',
             url: 'https://www.nasa.gov/',
             to: toElement,
         };
 
-        return {
-            partition: linkPartition,
-            model: linkModel,
-            nationalGeographic,
-            nasa,
-        };
-    }
-
-    it('sync and trim a toy imodel', () => {
         // TODO: How to test aspects?
 
         // Construct our synchronizer.
@@ -151,8 +144,6 @@ describe('sync', () => {
 
         const putModel = fir.put.bind(fir);
         const putElement = fir.put.bind(fir);
-
-        const { partition, model, nationalGeographic, nasa } = plaything();
 
         // Put the partition.
 
@@ -179,7 +170,7 @@ describe('sync', () => {
         assert.exists(aspectId);
         let foundAspect = fir.imodel.elements.getAspect(aspectId!) as backend.ExternalSourceAspect;
 
-        assert.strictEqual(foundAspect.version, "1.0.0");
+        assert.strictEqual(foundAspect.version, '1.0.0');
 
         // Put the model.
 
@@ -191,13 +182,9 @@ describe('sync', () => {
 
         // Sync the partition. Version change! o:
 
-        if (partition === 'root subject' || model === 'repository') {
-            assert.fail('what on earth did you do');
-        }
-
         partition.description = 'still models my links';
-        partition.meta.version = `1.0.1`;
-        model.jsonProperties = { UserProps: { "whitelist": "developer.bentley.com" } };
+        partition.meta.version = '1.0.1';
+        model.jsonProperties = { UserProps: { 'whitelist': 'developer.bentley.com' } };
 
         // Model must be synced first. A model does not have an external source aspect because it
         // is not an element, so it relies on detecting a change in the modeled element to know
@@ -214,13 +201,13 @@ describe('sync', () => {
 
         assert.strictEqual(foundPartition.description, 'still models my links');
 
-        assert.deepStrictEqual(foundModel.jsonProperties, { 'UserProps': { "whitelist": "developer.bentley.com" } });
+        assert.deepStrictEqual(foundModel.jsonProperties, { 'UserProps': { 'whitelist': 'developer.bentley.com' } });
 
         ({ aspectId } = fir.meta(partition)); // Weird parse.
         assert.exists(aspectId);
         foundAspect = fir.imodel.elements.getAspect(aspectId!) as backend.ExternalSourceAspect;
 
-        assert.strictEqual(foundAspect.version, "1.0.1");
+        assert.strictEqual(foundAspect.version, '1.0.1');
 
         // Which elements have we seen?
 
@@ -556,5 +543,40 @@ describe('sync', () => {
             findElements<common.UrlLinkProps>(fir.imodel, backend.UrlLink.classFullName).length,
             1
         );
+    });
+
+    it('trim nested definition models', () => {
+        let fir = new Sync(imodel);
+
+        // Write to the iModel!
+        nestedDefinitionModels(fir);
+        fir.imodel.saveChanges('fir all done');
+
+        const query = (fullClass: string) => `select count(*) from ${fullClass}`;
+
+        // Assert that the synchronizer inserted everything as intended.
+        count(imodel, query(backend.Subject.classFullName), 2);             // +1 for root subject
+        count(imodel, query(backend.DefinitionPartition.classFullName), 2); // +1 for dictionary partition
+        count(imodel, query(backend.DefinitionModel.classFullName), 4);     // +1 for dictionary model, +1 for repository model
+        count(imodel, query(backend.DefinitionContainer.classFullName), 2);
+        count(imodel, query(backend.Category.classFullName), 2);
+
+        // Okay, let's move this definition model to a different subject in the source file. We expect
+        // everything to be deleted.
+
+        fir = new Sync(imodel);
+
+        assert.doesNotThrow(
+            () => fir.trim('root subject'),
+            /Error deleting element/i
+        );
+        fir.imodel.saveChanges('fir all done');
+
+        // Assert that the synchronizer cleaned up after itself.
+        count(imodel, query(backend.Subject.classFullName), 1);             // +1 for root subject
+        count(imodel, query(backend.DefinitionPartition.classFullName), 1); // +1 for dictionary partition
+        count(imodel, query(backend.DefinitionModel.classFullName), 2);     // +1 for dictionary model, +1 for repository model
+        count(imodel, query(backend.DefinitionContainer.classFullName), 0);
+        count(imodel, query(backend.Category.classFullName), 0);
     });
 });

@@ -29,7 +29,6 @@ describe('queries', () => {
     });
 
     beforeEach(() => {
-        console.log(imodelPath);
         imodel = backend.SnapshotDb.createEmpty(imodelPath, {
             name,
             rootSubject: { name: 'root' }

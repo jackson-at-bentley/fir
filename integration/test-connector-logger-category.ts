@@ -19,6 +19,6 @@ export enum TestConnectorLoggerCategory {
   /** The logger category used by the following classes:
    * - [[ConnectorSynchronizer]]
    */
-  Connector = "TestConnector.Connector",
-  Geometry = "TestConnector.Geometry",
+  Connector = 'TestConnector.Connector',
+  Geometry = 'TestConnector.Geometry',
 }

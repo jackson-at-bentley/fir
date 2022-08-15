@@ -97,6 +97,13 @@ export function isManaged(imodel: backend.IModelDb, element: bentley.Id64String)
             return false;
         }
 
+        // const found = imodel.elements.getElement(element);
+
+        // The default subcategory is not managed?
+        // if (found instanceof backend.SubCategory && found.isDefaultSubCategory) {
+        //     return true;
+        // }
+
         return count.getInteger() > 0;
     });
 }

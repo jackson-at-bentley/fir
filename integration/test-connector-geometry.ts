@@ -3,14 +3,14 @@
 * See LICENSE.md in the project root for license terms and full copyright notice.
 *-------------------------------------------------------------------------------------------------*/
 
-import { Angle, AxisIndex, AxisOrder, Matrix3d, Point3d, Transform, Vector3d, YawPitchRollAngles } from "@itwin/core-geometry";
-import { Categories, GeometryParts, Materials } from "./test-connector-elements.js";
-import type { IModelDb} from "@itwin/core-backend";
-import { GeometryPart, RenderMaterialElement, SubCategory } from "@itwin/core-backend";
-import type { GeometryStreamProps} from "@itwin/core-common";
-import { ColorByName, ColorDef, GeometryParams, GeometryStreamBuilder, IModelError } from "@itwin/core-common";
-import type { Id64String} from "@itwin/core-bentley";
-import { IModelStatus } from "@itwin/core-bentley";
+import { Angle, AxisIndex, AxisOrder, Matrix3d, Point3d, Transform, Vector3d, YawPitchRollAngles } from '@itwin/core-geometry';
+import { Categories, GeometryParts, Materials } from './test-connector-elements.js';
+import type { IModelDb} from '@itwin/core-backend';
+import { GeometryPart, RenderMaterialElement, SubCategory } from '@itwin/core-backend';
+import type { GeometryStreamProps} from '@itwin/core-common';
+import { ColorByName, ColorDef, GeometryParams, GeometryStreamBuilder, IModelError } from '@itwin/core-common';
+import type { Id64String} from '@itwin/core-bentley';
+import { IModelStatus } from '@itwin/core-bentley';
 
 // To self: I copied this file verbatim from the test connector in the connector framework; I have
 // exactly zero idea what it does at the moment.

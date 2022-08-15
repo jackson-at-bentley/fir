@@ -3,17 +3,17 @@
 * See LICENSE.md in the project root for license terms and full copyright notice.
 *-------------------------------------------------------------------------------------------------*/
 
-import type { IModelDb} from "@itwin/core-backend";
-import { GroupInformationElement, PhysicalElement, SpatialCategory } from "@itwin/core-backend";
-import type { AxisAlignedBox3d, CodeScopeProps, CodeSpec, ElementProps, PhysicalElementProps, Placement3dProps } from "@itwin/core-common";
-import { Code, IModelError, Placement3d } from "@itwin/core-common";
-import type { Id64String} from "@itwin/core-bentley";
-import { IModelStatus, Logger } from "@itwin/core-bentley";
-import { TestConnectorLoggerCategory } from "./test-connector-logger-category.js";
-import type { XYZProps, YawPitchRollProps } from "@itwin/core-geometry";
-import { Point3d, YawPitchRollAngles } from "@itwin/core-geometry";
-import type { TileBuilder } from "./test-connector-geometry.js";
-import { EquilateralTriangleTileBuilder, IsoscelesTriangleTileBuilder, LargeSquareTileBuilder, RectangleTileBuilder, RightTriangleTileBuilder, SmallSquareTileBuilder } from "./test-connector-geometry.js";
+import type { IModelDb} from '@itwin/core-backend';
+import { GroupInformationElement, PhysicalElement, SpatialCategory } from '@itwin/core-backend';
+import type { AxisAlignedBox3d, CodeScopeProps, CodeSpec, ElementProps, PhysicalElementProps, Placement3dProps } from '@itwin/core-common';
+import { Code, IModelError, Placement3d } from '@itwin/core-common';
+import type { Id64String} from '@itwin/core-bentley';
+import { IModelStatus, Logger } from '@itwin/core-bentley';
+import { TestConnectorLoggerCategory } from './test-connector-logger-category.js';
+import type { XYZProps, YawPitchRollProps } from '@itwin/core-geometry';
+import { Point3d, YawPitchRollAngles } from '@itwin/core-geometry';
+import type { TileBuilder } from './test-connector-geometry.js';
+import { EquilateralTriangleTileBuilder, IsoscelesTriangleTileBuilder, LargeSquareTileBuilder, RectangleTileBuilder, RightTriangleTileBuilder, SmallSquareTileBuilder } from './test-connector-geometry.js';
 
 // To self: I copied this file verbatim from the test connector in the connector framework; I have
 // exactly zero idea what it does at the moment.

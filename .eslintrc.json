@@ -16,7 +16,9 @@
         "@typescript-eslint"
     ],
     "rules": {
-        "semi": ["error", "always"],
-        "semi-style": ["error", "last"]
+        "no-console": ["error"],
+        "quotes": ["error", "single"],
+        "semi-style": ["error", "last"],
+        "semi": ["error", "always"]
     }
 }

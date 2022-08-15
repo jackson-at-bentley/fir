@@ -1,7 +1,7 @@
 {
   "name": "fir-for-connectors",
   "description": "Map source files to an iModel",
-  "version": "0.0.0-pitch.13",
+  "version": "0.0.0-pitch.14",
   "homepage": "https://github.com/jackson-at-bentley/fir",
   "bugs": "https://github.com/jackson-at-bentley/fir/issues",
   "keywords": [

@@ -68,7 +68,7 @@ describe('integration', () => {
         // We use `query` here instead of a prepared statement because it's convenient.
 
         const query = (
-            "select ECInstanceId from only TestConnector:SmallSquareTile"
+            'select ECInstanceId from only TestConnector:SmallSquareTile'
         );
 
         const elements: bentley.Id64String[] = [];
@@ -89,8 +89,8 @@ describe('integration', () => {
         // the repository. I know it's unique though.
 
         const queryAspect = (
-            "select Element.id from only bis:ExternalSourceAspect"
-            + " where Identifier='baaa404e-d7c6-46b4-b990-fbb8c2c530aa'"
+            'select Element.id from only bis:ExternalSourceAspect'
+            + ' where Identifier=\'baaa404e-d7c6-46b4-b990-fbb8c2c530aa\''
         );
 
         const aspects: { 'element.id'? : bentley.Id64String }[] = [];
@@ -108,8 +108,8 @@ describe('integration', () => {
         const id = aspects[0]['element.id']!;
 
         const queryTile = (
-            "select ECInstanceId, Condition from only TestConnector:SmallSquareTile"
-            + ` where ECInstanceId=?`
+            'select ECInstanceId, Condition from only TestConnector:SmallSquareTile'
+            + ' where ECInstanceId=?'
         );
 
         const tiles: {id?: bentley.Id64String, condition?: string }[] = [];
@@ -136,7 +136,7 @@ describe('integration', () => {
         grow(imodel, { updateTile: {
             anchor: 'baaa404e-d7c6-46b4-b990-fbb8c2c530aa',
             version: '1.0.1',
-            userLabel: "This is my favorite tile because it's tiny and square",
+            userLabel: 'This is my favorite tile because it\'s tiny and square',
             condition: 'Beautiful',
         }});
 
@@ -146,8 +146,8 @@ describe('integration', () => {
         // the repository. I know it's unique though.
 
         const queryAspect = (
-            "select Element.id, Version from only bis:ExternalSourceAspect"
-            + " where Identifier='baaa404e-d7c6-46b4-b990-fbb8c2c530aa'"
+            'select Element.id, Version from only bis:ExternalSourceAspect'
+            + ' where Identifier=\'baaa404e-d7c6-46b4-b990-fbb8c2c530aa\''
         );
 
         const aspects: { 'element.id'? : bentley.Id64String, version?: string }[] = [];
@@ -167,8 +167,8 @@ describe('integration', () => {
         assert.strictEqual(aspects[0].version, '1.0.1');
 
         const queryTile = (
-            "select ECInstanceId, UserLabel, Condition from only TestConnector:SmallSquareTile"
-            + ` where ECInstanceId=?`
+            'select ECInstanceId, UserLabel, Condition from only TestConnector:SmallSquareTile'
+            + ' where ECInstanceId=?'
         );
 
         const tiles: {id?: bentley.Id64String, userLabel?: string, condition?: string }[] = [];
@@ -182,7 +182,7 @@ describe('integration', () => {
 
         assert.strictEqual(tiles.length, 1);
 
-        assert.strictEqual(tiles[0].userLabel, "This is my favorite tile because it's tiny and square");
+        assert.strictEqual(tiles[0].userLabel, 'This is my favorite tile because it\'s tiny and square');
         assert.strictEqual(tiles[0].condition, 'Beautiful');
     });
 });

@@ -154,7 +154,7 @@ function rootCategory(fir: Sync, definitionModel: Model, repository: Repository,
         model: definitionModel,
         parent: undefined,
         meta: meta('Category', '1.0.0', repository, source),
-        description: "I don't know what this root category is for yet.",
+        description: 'I don\'t know what this root category is for yet.',
         rank: common.Rank.Application,
         to: toElement,
     };
@@ -201,7 +201,7 @@ function subcategory(
             relationship: backend.CategoryOwnsSubCategories.classFullName
         },
         meta: meta(name, '1.0.0', repository, source),
-        description: "I'm a happy subcategory.",
+        description: 'I\'m a happy subcategory.',
         appearance,
         to: toElement,
     });
@@ -371,7 +371,7 @@ function read(): { [property: string]: unknown }
     // TODO: I really don't know how to handle JSON properly in TypeScript.
     const root = path.dirname(url.fileURLToPath(import.meta.url));
     const json = path.join(root, 'assets', 'test-connector.json');
-    return JSON.parse(fs.readFileSync(json, { encoding: "utf8" }));
+    return JSON.parse(fs.readFileSync(json, { encoding: 'utf8' }));
 }
 
 function syncGroups(fir: Sync, groupModel: Model, repository: Repository, source: Source): void
@@ -379,7 +379,7 @@ function syncGroups(fir: Sync, groupModel: Model, repository: Repository, source
     const json = read();
 
     if (!('Groups' in json && Array.isArray(json.Groups))) {
-        throw Error("fatal: expect property 'Groups' in source file");
+        throw Error('fatal: expect property \'Groups\' in source file');
     }
 
     // TODO: isArray performs unsafe conversion to any. That's why I get away with this bind. Don't
@@ -388,7 +388,7 @@ function syncGroups(fir: Sync, groupModel: Model, repository: Repository, source
 
     for(const group of groups) {
         if (!(group.guid && group.name)) {
-            throw Error("fatal: expect property 'guid' and 'name' in group");
+            throw Error('fatal: expect property \'guid\' and \'name\' in group');
         }
 
         fir.sync<Element<elements.TestConnectorGroupProps>>({
@@ -416,7 +416,7 @@ function syncShapes(
     const json = read();
 
     if (!('Tiles' in json && typeof json.Tiles === 'object' && json.Tiles !== null)) {
-        throw Error("fatal: expect property 'Tiles' in source file");
+        throw Error('fatal: expect property \'Tiles\' in source file');
     }
 
     for (const [kind, shapes] of Object.entries(json.Tiles)) {
@@ -439,7 +439,7 @@ function syncShapes(
                 payload,
             );
         } else {
-            throw Error("fatal: expect 'Tiles' values to be object or list of objects");
+            throw Error('fatal: expect \'Tiles\' values to be object or list of objects');
         }
     }
 }
@@ -487,7 +487,7 @@ function syncShape(
     }
 
     if (!shape.guid) {
-        throw Error("fatal: expect property 'guid' in shape");
+        throw Error('fatal: expect property \'guid\' in shape');
     }
 
     const version = (
@@ -602,7 +602,7 @@ function categorySelector(
     const categoryId = fir.put(category);
 
     const selector = backend.CategorySelector.create(
-        fir.imodel, fir.put(definitionModel), "Default", [ categoryId ]
+        fir.imodel, fir.put(definitionModel), 'Default', [ categoryId ]
     );
 
     const props: Element<common.CategorySelectorProps> = {
@@ -624,7 +624,7 @@ function modelSelector(
 ): Element<common.ModelSelectorProps>
 {
     const selector = backend.ModelSelector.create(
-        fir.imodel, fir.put(definitionModel), "Default", [ fir.put(physicalModel) ]
+        fir.imodel, fir.put(definitionModel), 'Default', [ fir.put(physicalModel) ]
     );
 
     const props: Element<common.ModelSelectorProps> = {
@@ -652,7 +652,7 @@ function displayStyle(fir: Sync, definitionModel: Model): Element<common.Display
     };
 
     const displayStyle = backend.DisplayStyle3d.create(
-        fir.imodel, fir.put(definitionModel), "Default", options
+        fir.imodel, fir.put(definitionModel), 'Default', options
     );
 
     // TODO: Should really scope this display style to the definition partition, because models

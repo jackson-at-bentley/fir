@@ -147,6 +147,9 @@ function resolveParentClass<E extends Element>(parent: E): string
     if (parent === 'root subject') {
         // TODO: The only children of the root subject are partition elements?
         return backend.SubjectOwnsPartitionElements.classFullName;
+    } else if (parent.classFullName === backend.Category.classFullName) {
+        // TODO: The only children of a category are subcategories?
+        return backend.CategoryOwnsSubCategories.classFullName;
     }
 
     return backend.ElementOwnsChildElements.classFullName;
@@ -227,7 +230,7 @@ export class Sync
                 anchor: 'fir-bookkeeping',
             },
             url: 'https://github.com/jackson-at-bentley/fir',
-            description: "Please don't touch me. fir needs me for bookkeeping.",
+            description: 'Please don\'t touch me. fir needs me for bookkeeping.',
             to: toElement,
         };
 
@@ -680,6 +683,24 @@ export class Sync
     /**
      * Given a subtree of the iModel, delete any elements and models that have not been seen by
      * the synchronizer and whose child elements have not been seen.
+     *
+     * @remarks
+     * This code is expected to be replaced by
+     * [`ElementTreeDeleter`](https://github.com/iTwin/connector-framework/blob/main/src/ElementTreeWalker.ts)
+     * when it is merged into the iTwin libraries. This implementation does not defer the deletion
+     * of definition elements; it trades efficiency for correctness, because I don't know how the
+     * backend processes different classes of definition elements when `deleteDefinitionElements`
+     * is called.
+     *
+     * @see [Sam Wilson's comments](https://github.com/iTwin/connector-framework/blob/main/src/ElementTreeWalker.ts#L256-L263)
+     * if you're interested why this isn't totally trivial.
+     *
+     * > `deleteDefinitionElements` does not preserve the order that you specify, and it does not
+     * > process children before parents.
+     *
+     * @todo What about deferring definition elements until we encounter a definition model, and
+     * then pass its immediate children? How does the backend respond to `DefinitionGroup` and
+     * `DefinitionContainer`?
      */
     trim<B extends Element | Model>(branch: B): common.IModelStatus
     {
@@ -727,17 +748,26 @@ export class Sync
                 remainingChildren = childrenOfModel(this.imodel, model.id);
             }
 
-            if (isElement && remainingChildren.length === 0 && !this.touched.has(branch)) {
-                this.trimRelationship(branch);
+            // console.log(`Visiting element ${branch}`);
 
-                const element = this.imodel.elements.getElement(branch);
+            const element = this.imodel.elements.getElement(branch);
+
+            const deferred = element instanceof backend.SubCategory;
+            const childrenDeferred = element instanceof backend.Category;
+            const childrenDeferredOrGone = remainingChildren.length === 0 || childrenDeferred;
+
+            if (isElement && !this.touched.has(branch) && !deferred && childrenDeferredOrGone) {
+                this.trimRelationship(branch);
 
                 // console.log(`Deleting element ${element.id} :: ${element.className}; ${element.userLabel}`);
 
+                // Note that although ReturnType<backend.getElement> :: backend.Element, the
+                // backend does some weird stuff and is able to construct the corresponding
+                // *class type* in iTwin's libraries. This means that the element's prototype chain
+                // is intact despite its type being narrowed to backend.Element. We can filter the
+                // element using instanceof.
+
                 if (element instanceof backend.DefinitionElement) {
-                    // TODO: This is inefficient, but I'm trying to avoid prematurely optimizing. If
-                    // we need to, we can locate the youngest common ancestor of the definition
-                    // elements seen in a definition model and pass the parent.
                     this.imodel.elements.deleteDefinitionElements([branch]);
                 } else {
                     this.imodel.elements.deleteElement(branch);
@@ -745,9 +775,6 @@ export class Sync
             } else if (!isElement && remainingChildren.length === 0) {
                 // If we've deleted all the immediate children of the model, delete both the modeled
                 // element and the model.
-
-                // TODO: Should we ignore the dictionary model because we can't delete it? This will
-                // explode, just like deleting the repository model.
 
                 // console.log(`Deleting model ${model.id} :: ${model.className}`);
 
