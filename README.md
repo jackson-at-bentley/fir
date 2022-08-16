@@ -266,10 +266,10 @@ I'm working on it. In the mean time `strictFunctionTypes` is the compiler option
 
 - [ ] _urgent!_ Need to figure out how to design the node types to allow the `to` function to properly narrow; otherwise, syncing is going to be difficult with elements with mandatory properties
 - [ ] Test the published package in `connector-framework`
-- [ ] Sync element aspects
 - [ ] Support more than one external source aspect
-- [ ] Utility function to safely extract the `Element` type out of other element types
 - [ ] Are there any class types that insert other elements into the iModel? `fir` won't know
+- [ ] Add node types for physical objects to better support the category navigation property
+- [x] Sync element aspects
 - [x] What about syncing `RelationshipProps`? Link table relationships should never cause cycles
 - [x] Document the `trim` method
 - [x] Trim untethered external sources and repositories. Can we use `trim`?

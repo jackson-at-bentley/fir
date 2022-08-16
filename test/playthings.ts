@@ -3,16 +3,16 @@ import 'mocha';
 import * as backend from '@itwin/core-backend';
 import * as common from '@itwin/core-common';
 
+import type {
+    Element,
+    Model
+} from '../src/nodes.js';
+
 import {
     Sync,
     toElement,
     toModel
 } from '../src/sync.js';
-
-import type {
-    Element,
-    Model
-} from '../src/nodes.js';
 
 type NestedDefinitionModels = {
   subject: Element<common.SubjectProps>,

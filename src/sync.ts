@@ -47,6 +47,17 @@ type RelationshipState = {
 } | { state: 'new' };
 
 /**
+ * Tree-trimming statistics.
+ *
+ * @todo Include statistics on deleted link-table relationships and navigation properties! o:
+ */
+export type Trim = {
+    deletedElements: number,
+    deletedModels: number,
+    deletedAspects: number
+};
+
+/**
  * An element can either be new or changed, because the library relies on {@link Sync#put} to insert
  * an element if it does not exist. This type is returned by {@link Sync#changed}.
  *
@@ -682,7 +693,8 @@ export class Sync
 
     /**
      * Given a subtree of the iModel, delete any elements and models that have not been seen by
-     * the synchronizer and whose child elements have not been seen.
+     * the synchronizer and whose child elements have not been seen. Note that `fir` uses
+     * {@link Sync#put} to find or insert the branch, so the argument will never be deleted.
      *
      * @remarks
      * This code is expected to be replaced by
@@ -702,13 +714,13 @@ export class Sync
      * then pass its immediate children? How does the backend respond to `DefinitionGroup` and
      * `DefinitionContainer`?
      */
-    trim<B extends Element | Model>(branch: B): common.IModelStatus
+    trim<B extends Element | Model>(branch: B): Trim
     {
         const branchId = this.put(branch);
         return this.trimTree(branchId);
     }
 
-    private trimTree(branch: bentley.Id64String): common.IModelStatus
+    private trimTree(branch: bentley.Id64String): Trim
     {
         // There are only two kinds of elements in BIS: modeled elements and parent elements.
         // See also: https://www.itwinjs.org/bis/intro/modeling-with-bis/#relationships
@@ -717,7 +729,10 @@ export class Sync
         // child is deleted before its parent, and every model before its modeled element.
 
         let children: bentley.Id64String[];
-        let childrenStatus = common.IModelStatus.Success;
+
+        let deletedElements = 0;
+        let deletedModels = 0;
+        let deletedAspects = 0;
 
         const model = this.imodel.models.tryGetSubModel(branch);
         const isElement = model === undefined;
@@ -731,35 +746,36 @@ export class Sync
         }
 
         children.forEach((child) => {
-            childrenStatus = foldStatus(childrenStatus, this.trimTree(child));
+            const deleted = this.trimTree(child);
+            deletedElements += deleted.deletedElements;
+            deletedModels += deleted.deletedModels;
+            deletedAspects += deleted.deletedAspects;
         });
 
         // If all elements were deleted successfully, delete the parent.
 
-        // TODO: This if statement throws. We can't recover from this, so we let it explode the
-        // process. Can this leave the iModel in an inconsistent state?
+        const element = this.imodel.elements.getElement(branch);
+        let remainingChildren: bentley.Id64String[];
 
-        if (childrenStatus === common.IModelStatus.Success && isManaged(this.imodel, branch)) {
-            let remainingChildren: bentley.Id64String[];
+        if (isElement) {
+            remainingChildren = childrenOfElement(this.imodel, branch);
+        } else {
+            remainingChildren = childrenOfModel(this.imodel, model.id);
+        }
+
+        // A category will have an unmanaged default subcategory. If we don't see the category,
+        // and its managed subcategories are deleted, we forcibly delete this subcategory.
+
+        const managed = isManaged(this.imodel, branch);
+        const seen = this.touched.has(branch);
+        const subcategoryWithDefault = element instanceof backend.Category && remainingChildren.length === 1;
+        const noChildren = remainingChildren.length === 0 || subcategoryWithDefault;
+
+        if (managed && !seen && noChildren) {
+            // console.log(`Visiting element ${branch} :: ${element.classFullName} (proto ${Object.getPrototypeOf(element).constructor.name}); definition? ${element instanceof backend.DefinitionElement}`);
 
             if (isElement) {
-                remainingChildren = childrenOfElement(this.imodel, branch);
-            } else {
-                remainingChildren = childrenOfModel(this.imodel, model.id);
-            }
-
-            // console.log(`Visiting element ${branch}`);
-
-            const element = this.imodel.elements.getElement(branch);
-
-            const deferred = element instanceof backend.SubCategory;
-            const childrenDeferred = element instanceof backend.Category;
-            const childrenDeferredOrGone = remainingChildren.length === 0 || childrenDeferred;
-
-            if (isElement && !this.touched.has(branch) && !deferred && childrenDeferredOrGone) {
                 this.trimRelationship(branch);
-
-                // console.log(`Deleting element ${element.id} :: ${element.className}; ${element.userLabel}`);
 
                 // Note that although ReturnType<backend.getElement> :: backend.Element, the
                 // backend does some weird stuff and is able to construct the corresponding
@@ -767,23 +783,54 @@ export class Sync
                 // is intact despite its type being narrowed to backend.Element. We can filter the
                 // element using instanceof.
 
+                // Aspects are owned, i.e., their lifetime is managed by their owning element. When
+                // we delete the element, the aspects are deleted, so we count them in advance
+                // before letting the backend loose.
+
+                // We still want to perform bookkeeping with deferred elements, because we ensure
+                // they are deleted.
+
                 if (element instanceof backend.DefinitionElement) {
-                    this.imodel.elements.deleteDefinitionElements([branch]);
+                    // console.log(`Try deleting definition ${element.id} :: ${element.className}; label: ${element.userLabel}`);
+
+                    const aspects = this.imodel.elements.getAspects(branch).length;
+                    const inUse = this.imodel.elements.deleteDefinitionElements([branch]).size;
+
+                    if (inUse === 0) {
+                        // console.log('  Success!');
+
+                        deletedElements += 1;
+                        if (element instanceof backend.Category) {
+                            deletedElements += 1; // The default subcategory.
+                        }
+
+                        deletedAspects += aspects;
+                    }
                 } else {
+                    // console.log(`Deleting element ${element.id} :: ${element.className}; label: ${element.userLabel}`);
+
+                    deletedElements += 1;
+                    deletedAspects += this.imodel.elements.getAspects(branch).length;
+
                     this.imodel.elements.deleteElement(branch);
                 }
-            } else if (!isElement && remainingChildren.length === 0) {
+            } else {
                 // If we've deleted all the immediate children of the model, delete both the modeled
-                // element and the model.
+                // element and the model. We do not defer modeled elements, because the model must
+                // be deleted.
 
                 // console.log(`Deleting model ${model.id} :: ${model.className}`);
+
+                deletedElements += 1;
+                deletedModels += 1;
+                deletedAspects += this.imodel.elements.getAspects(branch).length;
 
                 this.imodel.models.deleteModel(model.id);
                 this.imodel.elements.deleteElement(branch);
             }
         }
 
-        return common.IModelStatus.Success;
+        return { deletedElements, deletedModels, deletedAspects };
     }
 
     /**

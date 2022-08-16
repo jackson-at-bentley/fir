@@ -1,14 +1,13 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 
+import 'mocha';
+
+import * as backend from '@itwin/core-backend';
+import * as bentley from '@itwin/core-bentley';
+import * as common from '@itwin/core-common';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as url from 'node:url';
-
-import 'mocha';
-import { assert } from 'chai';
-
-import * as backend from '@itwin/core-backend';
-import * as common from '@itwin/core-common';
 
 import {
     Aspect,
@@ -27,8 +26,8 @@ import {
     toSource,
 } from '../src/sync.js';
 
+import { assert } from 'chai';
 import { findElements } from '../src/queries.js';
-
 import { nestedDefinitionModels } from './playthings.js';
 
 const count = (imodel: backend.IModelDb, query: string, times: number): void => {
@@ -49,6 +48,8 @@ describe('sync', () => {
         const configuration = new backend.IModelHostConfiguration();
         configuration.cacheDir = outputPath;
         await backend.IModelHost.startup(configuration);
+        bentley.Logger.initializeToConsole();
+        bentley.Logger.setLevelDefault(bentley.LogLevel.Trace);
     });
 
     after(async () => {
@@ -230,11 +231,15 @@ describe('sync', () => {
 
         // Now trim the fir and see what happens.
 
-        fir.trim(partition);
+        const deleted = fir.trim(partition);
 
         urls = findElements<common.UrlLinkProps>(imodel, backend.UrlLink.classFullName);
         assert.strictEqual(urls.length, 1);
         assert.strictEqual(urls[0].description, 'the homepage of national geographic');
+
+        assert.strictEqual(deleted.deletedElements, 1);
+        assert.strictEqual(deleted.deletedModels, 0);
+        assert.strictEqual(deleted.deletedAspects, 1);
     });
 
     it('can sync unique aspects', () => {
@@ -421,11 +426,11 @@ describe('sync', () => {
 
         const pine = new Sync(imodel);
 
-        pine.sync(objects);
-        pine.sync(categories);
+        const deleted = pine.trim(objects);
 
-        pine.trim(categories);
-        pine.trim(objects);
+        assert.strictEqual(deleted.deletedElements, 2);
+        assert.strictEqual(deleted.deletedModels, 0);
+        assert.strictEqual(deleted.deletedAspects, 2);
 
         // To make sure the provenance for the relationship with anchor 'drawing to circus tent'
         // doesn't exist in fir's store anymore, we try to put the relationship again. If we
@@ -566,11 +571,13 @@ describe('sync', () => {
 
         fir = new Sync(imodel);
 
-        assert.doesNotThrow(
-            () => fir.trim('root subject'),
-            /Error deleting element/i
-        );
+        const deleted = fir.trim('root subject');
         fir.imodel.saveChanges('fir all done');
+
+        // Assert that the synchronizer correctly counted deleted iModel branches.
+        assert.strictEqual(deleted.deletedElements, 8);
+        assert.strictEqual(deleted.deletedModels, 2);
+        assert.strictEqual(deleted.deletedAspects, 6);
 
         // Assert that the synchronizer cleaned up after itself.
         count(imodel, query(backend.Subject.classFullName), 1);             // +1 for root subject

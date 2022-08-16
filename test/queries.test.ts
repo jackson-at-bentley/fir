@@ -1,14 +1,13 @@
-import * as fs from 'node:fs';
-import * as path from 'node:path';
-import * as url from 'node:url';
-
 import 'mocha';
-import { assert } from 'chai';
 
 import * as backend from '@itwin/core-backend';
 import * as bentley from '@itwin/core-bentley';
 import * as common from '@itwin/core-common';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+import * as url from 'node:url';
 
+import { assert } from 'chai';
 import { modelOf } from '../src/queries.js';
 
 describe('queries', () => {

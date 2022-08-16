@@ -3,13 +3,15 @@
  * See LICENSE.md in the project root for license terms and full copyright notice.
  *------------------------------------------------------------------------------------------------*/
 
-import * as fs from 'node:fs';
-import * as path from 'node:path';
-import * as url from 'node:url';
-
 import * as backend from '@itwin/core-backend';
 import * as common from '@itwin/core-common';
+import * as elements from './test-connector-elements.js';
+import * as fs from 'node:fs';
 import * as geometry from '@itwin/core-geometry';
+import * as models from './test-connector-models.js';
+import * as parts from './test-connector-geometry.js';
+import * as path from 'node:path';
+import * as url from 'node:url';
 
 import {
     Element,
@@ -25,10 +27,6 @@ import {
     toModel,
     toSource,
 } from '../src/sync.js';
-
-import * as elements from './test-connector-elements.js';
-import * as models from './test-connector-models.js';
-import * as parts from './test-connector-geometry.js';
 
 // For integration testing.
 
