@@ -243,15 +243,13 @@ Finally, we have to tell `fir` how to map this new intermediate type to its 'pro
 
 First, we call `toElement`, which you'll remember from all the elements we made above. This turns `fir`'s element type `Element` into `ElementProps`. We dump it into our `ExternalSourceAttachmentProps` and add the `attaches` property to complete the type. We make use of `put` to get the ID of the external source this element refers to.
 
-This process can be kind of dangerous, and I'm still searching for a better design. Here's why.
-
 ![A diagram of fir's type tree. Caption reads, "Dashed nodes are convenience types with the type argument defaulted; solid nodes are used when extending the library. The node at the tail of an arrow is a supertype of the node at the head."](https://github.com/jackson-at-bentley/fir/blob/main/images/types-tree.svg?raw=true)
 
 It turns out we got lucky with this example. When we call `toElement` we're trying to assign our `ExternalSourceAttachment` type to an `Element` type. This would be a beautiful case of type narrowing if it weren't for the `to` properties on the two types. In TypeScript, if you assign a function `f` to another function `g` by writing `g = f`, the function `f` must have at most as large a domain as `g`, because functions that have type `typeof g` give no indication that they do anything with the excess input, like our `attaches` property. They may even explode. In our case `toElement` will happily dump everything it receives into the `ElementProps`.
 
 If the BIS specifications said that the `attaches` relationship is mandatory, we'd have a problem. `Element`'s `to` type doesn't allow that property. We can use `as unknown as Element` to tell TypeScript that we're sure the `to` function will never be invoked without an `attachment` property.
 
-A better solution is a utility function to safely perform the extraction.
+The good news is that because of the way props types are implemented, they're always optional. The same type is used as the parameter to `insertElement` and `updateElement`, and properties that are undefined during an update will be cleared. This ensures that our nodes will always be narrowable to `Element` in an extraordinarily hacky way. However, if your navigation property is mandatory, like `bis:SubCategory`'s parent, and you forget to specify the property on an insertion, the backend will buck you.
 
 > That's a lot of work and boilerplate for a new navigation property.
 
