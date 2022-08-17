@@ -1019,12 +1019,3 @@ function mergeJson(user: UserJson, existing: Json): Json
 
     return existing;
 }
-
-function foldStatus(folded: common.IModelStatus, addition: common.IModelStatus): common.IModelStatus
-{
-    if (folded !== common.IModelStatus.Success) {
-        return folded;
-    }
-
-    return addition;
-}
