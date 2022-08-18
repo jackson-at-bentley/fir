@@ -787,9 +787,6 @@ export class Sync
                 // we delete the element, the aspects are deleted, so we count them in advance
                 // before letting the backend loose.
 
-                // We still want to perform bookkeeping with deferred elements, because we ensure
-                // they are deleted.
-
                 if (element instanceof backend.DefinitionElement) {
                     // console.log(`Try deleting definition ${element.id} :: ${element.className}; label: ${element.userLabel}`);
 
@@ -816,8 +813,7 @@ export class Sync
                 }
             } else {
                 // If we've deleted all the immediate children of the model, delete both the modeled
-                // element and the model. We do not defer modeled elements, because the model must
-                // be deleted.
+                // element and the model.
 
                 // console.log(`Deleting model ${model.id} :: ${model.className}`);
 
