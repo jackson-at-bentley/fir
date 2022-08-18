@@ -15,7 +15,7 @@ import * as common from '@itwin/core-common';
  */
 export function modelOf(imodel: backend.IModelDb, modeled: bentley.Id64String): bentley.Id64String | null
 {
-    const query = 'select ECInstanceId from bis:Model where ModeledElement.id= ? ';
+    const query = 'select ECInstanceId from bis:Model where ModeledElement.id = ? ';
 
     return imodel.withPreparedStatement(query, (statement) => {
         statement.bindId(1, modeled);
@@ -40,7 +40,7 @@ export function modelOf(imodel: backend.IModelDb, modeled: bentley.Id64String): 
  */
 export function childrenOfModel(imodel: backend.IModelDb, model: bentley.Id64String): bentley.Id64String[]
 {
-  const query = 'select ECInstanceId from bis:Element where Model.id=? and Parent is NULL';
+  const query = 'select ECInstanceId from bis:Element where Model.id = ? and Parent is null';
 
     return imodel.withPreparedStatement(query, (statement) => {
         const elements: bentley.Id64String[] = [];
