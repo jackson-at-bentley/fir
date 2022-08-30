@@ -61,12 +61,17 @@ I've been [rather vocal](https://github.com/iTwin/connector-framework/pull/55) a
 
 ## Getting started 🌱
 
-
 ```text
 npm install --save fir-for-connectors
 ```
 
-If you're doing your own imports of the iTwin libraries you may encounter a duplicate native library. I need to do more testing to figure out how to properly package `fir`, for example, so it can be used in `connector-framework`. If you're just using `fir` without `connector-framework` everything should work fine.
+Now install `fir`'s peer dependency.
+
+```text
+npm install @itwin/core-common
+```
+
+You'll only need `@itwin/core-common` because `fir` makes use of those types in its own types.
 
 ```ts
 import type { Element, Meta, Model  } from 'fir-for-connectors';

@@ -1,7 +1,7 @@
 {
   "name": "fir-for-connectors",
   "description": "Map source files to an iModel",
-  "version": "0.0.0-pitch.15",
+  "version": "0.1.0-beta.1",
   "homepage": "https://github.com/jackson-at-bentley/fir",
   "bugs": "https://github.com/jackson-at-bentley/fir/issues",
   "keywords": [
@@ -29,6 +29,10 @@
   },
   "devDependencies": {
     "@istanbuljs/nyc-config-typescript": "^1.0.2",
+    "@itwin/core-backend": "^3.3.1",
+    "@itwin/core-bentley": "^3.3.1",
+    "@itwin/core-common": "^3.3.1",
+    "@itwin/core-geometry": "^3.3.1",
     "@types/chai": "^4.3.1",
     "@types/mocha": "^9.1.1",
     "@typescript-eslint/eslint-plugin": "^5.30.7",
@@ -41,12 +45,7 @@
     "typedoc": "^0.23.10",
     "typescript": "^4.7.4"
   },
-  "dependencies": {
-    "@itwin/core-backend": "^3.2.6",
-    "@itwin/core-bentley": "^3.2.6",
-    "@itwin/core-common": "^3.2.6",
-    "@itwin/core-geometry": "^3.2.6",
-    "@itwin/core-quantity": "^3.2.6",
-    "@itwin/ecschema-metadata": "^3.2.6"
+  "peerDependencies": {
+    "@itwin/core-common": "^3.0.0"
   }
 }
