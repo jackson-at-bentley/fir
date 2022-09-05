@@ -29,6 +29,7 @@ import {
 import { assert } from 'chai';
 import { findElements } from '../src/queries.js';
 import { nestedDefinitionModels } from './playthings.js';
+import { ExternalSourceAspect } from '@itwin/core-backend';
 
 const count = (imodel: backend.IModelDb, query: string, times: number): void => {
     imodel.withStatement<void>(query, (statement) => {
@@ -548,6 +549,49 @@ describe('sync', () => {
             findElements<common.UrlLinkProps>(fir.imodel, backend.UrlLink.classFullName).length,
             1
         );
+    });
+
+    it('elements cannot have the same source identifier', () => {
+        const makeSubject = (label: string, description: string): void => {
+            const subject: common.SubjectProps = {
+                classFullName: backend.Subject.classFullName,
+                model: common.IModel.repositoryModelId,
+                parent: new backend.SubjectOwnsSubjects(common.IModel.rootSubjectId),
+                code: backend.Subject.createCode(imodel, common.IModel.rootSubjectId, label),
+                description,
+            };
+
+            const ecInstanceId = imodel.elements.insertElement(subject);
+
+            const meta: common.ExternalSourceAspectProps = {
+                classFullName: backend.ExternalSourceAspect.classFullName,
+                element: new backend.ElementOwnsExternalSourceAspects(ecInstanceId),
+                kind: 'ts',
+                scope: { id: common.IModel.rootSubjectId },
+                identifier: label,
+            };
+
+            imodel.elements.insertAspect(meta);
+        };
+
+        makeSubject('harbor', 'one particular harbor and all are safe within');
+
+        // Duplicate code!
+        // https://www.itwinjs.org/reference/core-common/core-common/imodelstatus
+
+        assert.throws(() => makeSubject('harbor', 'the home of a sailor named jimmy'), /error inserting/i);
+
+        // imodel.saveChanges('done writing subjects');
+
+        // const subjects = (
+        //     'select count(*) from bis:Subject as subjects inner join bis:ExternalSourceAspect as metas'
+        //     + ' on subjects.ECInstanceId = metas.Element.id'
+        //     + ' where subjects.CodeValue = metas.Identifier'
+        // );
+
+        // count(imodel, subjects, 2);
+
+        // const found = ExternalSourceAspect.findBySource(imodel, common.IModel.rootSubjectId, 'ts', 'harbor');
     });
 
     it('trim nested definition models', () => {

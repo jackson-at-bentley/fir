@@ -1,7 +1,7 @@
 {
   "name": "fir-for-connectors",
   "description": "Map source files to an iModel",
-  "version": "0.1.0-beta.1",
+  "version": "0.1.0-beta.2",
   "homepage": "https://github.com/jackson-at-bentley/fir",
   "bugs": "https://github.com/jackson-at-bentley/fir/issues",
   "keywords": [
@@ -23,7 +23,7 @@
   "scripts": {
     "test": "c8 mocha",
     "compile": "tsc",
-    "tidy": "rm --force --recursive build docs coverage side-effects/imodels side-effects/test-connector.bim",
+    "tidy": "rm --force --recursive build docs coverage side-effects/imodels side-effects/Workspace",
     "lint": "eslint src test integration",
     "doc": "npx typedoc --excludeInternal"
   },

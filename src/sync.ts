@@ -603,7 +603,7 @@ export class Sync
         return {
             ...meta,
             classFullName: backend.ExternalSourceAspect.classFullName,
-            element: { id: elementId },
+            element: new backend.ElementOwnsExternalSourceAspects(elementId),
             scope: { id: this.put(meta.scope) },
             source: meta.source ? { id: this.put(meta.source) } : undefined,
             identifier: meta.anchor,

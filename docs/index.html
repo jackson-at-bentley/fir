@@ -81,7 +81,10 @@
 </a>
 <pre><code class="language-text">npm install --save fir-for-connectors
 </code></pre>
-<p>If you&#39;re doing your own imports of the iTwin libraries you may encounter a duplicate native library. I need to do more testing to figure out how to properly package <code>fir</code>, for example, so it can be used in <code>connector-framework</code>. If you&#39;re just using <code>fir</code> without <code>connector-framework</code> everything should work fine.</p>
+<p>Now install <code>fir</code>&#39;s peer dependency.</p>
+<pre><code class="language-text">npm install @itwin/core-common
+</code></pre>
+<p>You&#39;ll only need <code>@itwin/core-common</code> because <code>fir</code> makes use of those types in its own types.</p>
 <pre><code class="language-ts"><span class="hl-7">import</span><span class="hl-1"> </span><span class="hl-7">type</span><span class="hl-1"> { </span><span class="hl-4">Element</span><span class="hl-1">, </span><span class="hl-4">Meta</span><span class="hl-1">, </span><span class="hl-4">Model</span><span class="hl-1">  } </span><span class="hl-7">from</span><span class="hl-1"> </span><span class="hl-6">&#39;fir-for-connectors&#39;</span><span class="hl-1">;</span><br/><span class="hl-7">import</span><span class="hl-1"> { </span><span class="hl-4">Sync</span><span class="hl-1">, </span><span class="hl-4">toElement</span><span class="hl-1">, </span><span class="hl-4">toModel</span><span class="hl-1"> } </span><span class="hl-7">from</span><span class="hl-1"> </span><span class="hl-6">&#39;fir-for-connectors&#39;</span><span class="hl-1">;</span>
 </code></pre>
 <p>Let&#39;s say we want to add <a href="https://www.itwinjs.org/bis/domains/biscore.ecschema/#urllink">a link</a> to our iModel. We know that the corresponding BIS element is a <code>BisCore:UrlLink</code>. We search the <a href="https://www.itwinjs.org/reference">iTwin API</a> for <em>url link</em> and see <a href="https://www.itwinjs.org/reference/core-common/entities/urllinkprops"><code>UrlLinkProps</code></a>. <code>UrlLinkProps</code> extends <code>ElementProps</code>, so we can use it with <code>fir</code>. Generally, anything with a <em>props</em> at the end is fair game. We&#39;re adding an element, so we define an object of type <code>Element</code> and feed it the props we found.</p>
@@ -140,7 +143,7 @@ nodes.ts(53, 5): &#39;to&#39; is declared here.
 <li>Elements with the <code>Element</code> type.</li>
 <li>Models with the <code>Model</code> type.</li>
 <li>Aspects with the <code>Aspect</code> type. Use <code>Meta</code> for external source aspects. Note the <code>aspects</code> property on <code>Element</code>. The caveat is that aspects cannot have navigation properties until the iTwin API allows you to get their ID.</li>
-<li>Link-table relationships with the <code>Relationship</code> type. These take a little bit of care. They have an <code>anchor</code> property for provenance. You can&#39;t feed them to <code>sync</code> because if any part of a relationship changes it&#39;s considered a different relationship: anchor, class, source, or target. Use <code>put</code> instead.</li>
+<li>Link-table relationships with the <code>Relationship</code> type. These take a little bit of care. They have an <code>anchor</code> property for provenance. You can&#39;t feed them to <code>sync</code> because if any part of a relationship changes it&#39;s considered a different relationship: anchor, class, source, or target. Use <code>put</code> instead. If a property besides these on a relationship changes, like one specified in a custom schema, <code>put</code> will not update the relationship because it must compare unknown properties between two link-table relationships. This is a limitation that should be addressed if the library is ever updated.</li>
 <li>Navigation properties by <a href="#extending-fir-">extending or escaping the library</a>. <code>fir</code> comes with the common ones, like parent-child relationships and element-model relationships.</li>
 </ul>
 
