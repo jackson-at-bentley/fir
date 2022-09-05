@@ -626,7 +626,19 @@ export class Sync
         const props = toRelationship(this, relationship);
 
         if (state.state === 'update') {
-            // This doesn't seem to be working.
+            // This doesn't seem to be working, but more likely it doesn't work as I expected
+            // because I didn't think through its implementation properly. The BIS spec says that
+            // link-table relationships can contain properties.
+
+            // https://www.itwinjs.org/bis/guide/fundamentals/relationship-fundamentals/#link-table
+
+            // `updateInstance` is probably designed to update those properties and not change the
+            // source or target of the relationship in the link table, because then it becomes a
+            // different relationship. This is the same problem that `fir` runs into when
+            // determining if a relationship has changed in the source file, so it stores a copy of
+            // every relationship with provenance so it can locate the stale relationship in the
+            // iModel when the source changes.
+
             // this.imodel.relationships.updateInstance(props);
 
             this.imodel.relationships.deleteInstance({
