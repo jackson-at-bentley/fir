@@ -185,7 +185,7 @@ Absolutely! Take a look at the integration folder, which has `test-connector.ts`
 - Elements with the `Element` type.
 - Models with the `Model` type.
 - Aspects with the `Aspect` type. Use `Meta` for external source aspects. Note the `aspects` property on `Element`. The caveat is that aspects cannot have navigation properties until the iTwin API allows you to get their ID.
-- Link-table relationships with the `Relationship` type. These take a little bit of care. They have an `anchor` property for provenance. You can't feed them to `sync` because if any part of a relationship changes it's considered a different relationship: anchor, class, source, or target. Use `put` instead.
+- Link-table relationships with the `Relationship` type. These take a little bit of care. They have an `anchor` property for provenance. You can't feed them to `sync` because if any part of a relationship changes it's considered a different relationship: anchor, class, source, or target. Use `put` instead. If a property besides these on a relationship changes, like one specified in a custom schema, `put` will not update the relationship because it must compare unknown properties between two link-table relationships. This is a limitation that should be addressed if the library is ever updated.
 - Navigation properties by [extending or escaping the library](#extending-fir-). `fir` comes with the common ones, like parent-child relationships and element-model relationships.
 
 ### Growing taller
