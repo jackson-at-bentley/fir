@@ -31,20 +31,25 @@ import {
  *
  * @internal
  */
-type State = { state: 'update', id: bentley.Id64String } | { state: 'new' };
+type State = { state: 'new' } | { state: 'update', id: bentley.Id64String };
 
 /**
  * A relationship is identified by a triple, not only by its ID? The relationship APIs require this
  * (class, source, target) triple to delete a relationship, but only its class to update a
- * relationship. But the update functionality seems broken, so we opt for deleting.
+ * relationship.
  *
  * @internal
  */
 type RelationshipState = {
-    state: 'update',
+    state: 'new'
+} | {
+    state: 'move',
     id: bentley.Id64String,
     fullClass: string, source: bentley.Id64String, target: bentley.Id64String
-} | { state: 'new' };
+} | {
+    state: 'update',
+    id: bentley.Id64String
+};
 
 /**
  * Tree-trimming statistics.
@@ -198,10 +203,16 @@ function toRelationship<R extends Relationship>(sync: Sync, relationship: R): co
     const sourceId = sync.put(relationship.source);
     const targetId = sync.put(relationship.target);
 
-    const props: common.RelationshipProps = {
+
+    const props: common.RelationshipProps & {anchor?: string, source?: Element, target?: Element } = {
+        ...relationship,
         sourceId, targetId,
         classFullName: relationship.classFullName,
     };
+
+    delete props.anchor;
+    delete props.source;
+    delete props.target;
 
     return props;
 }
@@ -236,12 +247,12 @@ export class Sync
             meta: {
                 classFullName: backend.ExternalSourceAspect.classFullName,
                 scope: 'root subject',
-                version: '0.0.0-pitch',
+                version: '0.1.1-beta.1',
                 kind: 'ts',
                 anchor: 'fir-bookkeeping',
             },
             url: 'https://github.com/jackson-at-bentley/fir',
-            description: 'Please don\'t touch me. fir needs me for bookkeeping.',
+            description: "Please don't touch me. fir needs me for bookkeeping.",
             to: toElement,
         };
 
@@ -253,7 +264,7 @@ export class Sync
      * aspect of the element has changed, the element will be updated. This function will also
      * insert all of the dependencies of the element if its `to` function is correct.
      */
-    sync<B extends Element | Model>(branch: B): void
+    sync<B extends Element | Model | Relationship>(branch: B): void
     {
         if (branch === 'repository' || branch === 'root subject') {
             return;
@@ -270,6 +281,8 @@ export class Sync
             this.syncElement(branch);
         } else if ('modeledElement' in branch) {
             this.syncModel(branch);
+        } else if ('source' in branch) {
+            this.syncRelationship(branch);
         } else {
             throw Error('fatal: sync narrowing failure; this is a 🐛');
         }
@@ -308,6 +321,12 @@ export class Sync
         }
     }
 
+    private syncRelationship<R extends Relationship>(relationship: R): void
+    {
+        const { criteria: id } = this.putRelationship(relationship);
+        this.mapRelationship(relationship, { state: 'update', id });
+    }
+
     /**
      * Insert `fir`'s representation of a branch in an iModel into the iModel. Its ID is returned.
      * If the branch already exists `fir` will not attempt to insert it again. I like to think of
@@ -338,7 +357,7 @@ export class Sync
         }
 
         if ('source' in branch) {
-            return this.putRelationship(branch);
+            return this.putRelationship(branch).criteria;
         }
 
         throw Error('fatal: put narrowing failure; this is a 🐛');
@@ -392,10 +411,8 @@ export class Sync
      * The {@link nodes!Relationship} type represents
      * [link-table relationships](https://www.itwinjs.org/bis/intro/relationship-fundamentals/#link-table).
      */
-    private putRelationship<R extends Relationship>(relationship: R): bentley.Id64String
+    private putRelationship<R extends Relationship>(relationship: R): ReturnType<typeof this.mapRelationship>
     {
-        let id: bentley.Id64String;
-
         const read = this.readTag(
             this.store, relationship.anchor
         );
@@ -414,7 +431,7 @@ export class Sync
         const targetId = this.put(relationship.target);
 
         if (!found) {
-            id = this.mapRelationship(relationship, { state: 'new' });
+            const identifier = this.mapRelationship(relationship, { state: 'new' });
 
             // Tag the related elements so that the relationship in fir's store can be deleted if
             // either of the elements is deleted. The entry in the link table is deleted
@@ -423,13 +440,15 @@ export class Sync
             this.tag(relationship.target, relationship.anchor, null);
 
             this.tag(this.store, relationship.anchor, {
-                id, fullClass,
+                id: identifier.criteria, fullClass,
                 source: sourceId, target: targetId
             });
-        } else if (fullClass === found.fullClass && sourceId === found.source && targetId === found.source) {
+
+            return identifier;
+        } else if (fullClass === found.fullClass && sourceId === found.source && targetId === found.target) {
             // No change has been made to the relationship. This means we've encountered the same
-            // relationship and should just return its ID.
-            id = found.id;
+            // relationship in our cache and should just return its ID.
+            return { relClassFullName: fullClass, criteria: found.id };
         } else {
             // Tag the related elements so that the relationship can be deleted if either of the
             // elements is deleted.
@@ -446,19 +465,19 @@ export class Sync
                 this.tag(relationship.target, relationship.anchor, null);
             }
 
-            id = this.mapRelationship(relationship, {
-                state: 'update',
+            const identifier = this.mapRelationship(relationship, {
+                state: 'move',
                 id: found.id,
                 fullClass: found.fullClass, source: found.source, target: found.target
             });
 
             this.tag(this.store, relationship.anchor, {
-                id, fullClass,
+                id: identifier.criteria, fullClass,
                 source: sourceId, target: targetId
             });
-        }
 
-        return id;
+            return identifier;
+        }
     }
 
     /**
@@ -580,10 +599,10 @@ export class Sync
      *
      * This design decision also means we can't use `to` functions with aspects, because we'd have
      * to supply the ID of the owning element.
-
+     *
      * > Aspects are only allowed as the source of relationships behind navigational properties, or
      * > as the target of element-owns-aspect relationships.
-
+     *
      * [Here's my source](https://www.itwinjs.org/bis/intro/relationship-fundamentals/#supported-relationship-capabilities)
      * for that quote, straight from Casey.
      *
@@ -621,11 +640,25 @@ export class Sync
     /**
      * @internal
      */
-    private mapRelationship<R extends Relationship>(relationship: R, state: RelationshipState): bentley.Id64String
-    {
+    private mapRelationship<R extends Relationship>(relationship: R, state: RelationshipState): {
+        relClassFullName: string,
+        criteria: bentley.Id64String
+    } {
         const props = toRelationship(this, relationship);
 
         if (state.state === 'update') {
+            this.imodel.relationships.updateInstance({
+                ...props,
+                id: state.id,
+            });
+
+            return {
+                relClassFullName: relationship.classFullName,
+                criteria: state.id,
+            };
+        }
+
+        if (state.state === 'move') {
             // This doesn't seem to be working, but more likely it doesn't work as I expected
             // because I didn't think through its implementation properly. The BIS spec says that
             // link-table relationships can contain properties.
@@ -649,7 +682,12 @@ export class Sync
             });
         }
 
-        return this.imodel.relationships.insertInstance(props);
+        const identifier = {
+            relClassFullName: relationship.classFullName,
+            criteria: this.imodel.relationships.insertInstance(props)
+        };
+
+        return identifier;
     }
 
     /**
@@ -851,6 +889,10 @@ export class Sync
      * each relationship to see if it exists every time the connector author calls
      * { @link Sync#trim }.
      *
+     * @todo For now assume that every tag on an element is a relationship anchor. This will change
+     * when the aspect API allows us to keep track of aspects. Then tags will have to be further
+     * namespaced within the 'fir' namespace.
+     *
      * @internal
      */
     private trimRelationship(element: bentley.Id64String): void
@@ -858,10 +900,6 @@ export class Sync
         const readSource = this.readTag(element);
 
         if (readSource.success) {
-            // For now assume that every tag on an element is a relationship anchor.
-            // TODO: This will change when the aspect API allows us to keep track of aspects. Then
-            // tags will have to be further namespaced within the 'fir' namespace.
-
             const source = readSource.payload as { [anchor: string]: null };
             const anchors = Object.keys(source);
 

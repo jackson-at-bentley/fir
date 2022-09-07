@@ -10,7 +10,9 @@ An experimental, declarative synchronizer for iTwin connectors that aims to modi
 
 - [Motivation 🔍](#motivation-)
 - [Getting started 🌱](#getting-started-)
-- [Extending `fir` ⚡](#extending-fir-)
+- [More iModel things 🌎](#more-imodel-things-)
+- [Growing taller 🌲](#growing-taller-)
+- [Extending `fir` 🧩](#extending-fir-)
 - [Docs 📄](https://jackson-at-bentley.github.io/fir)
 
 ### What does it look like?
@@ -178,17 +180,36 @@ It may take multiple passes to remove untouched elements from the iModel dependi
 
 Absolutely! Take a look at the integration folder, which has `test-connector.ts`. It's the same test connector in `connector-framework` but it's written in `fir`. Currently it's hard-coded in version `1.0.0` so `fir` won't actually update the elements.
 
-### More iModel things
+## More iModel things 🌎
 
 `fir` supports these iModel things.
 
 - Elements with the `Element` type.
 - Models with the `Model` type.
 - Aspects with the `Aspect` type. Use `Meta` for external source aspects. Note the `aspects` property on `Element`. The caveat is that aspects cannot have navigation properties until the iTwin API allows you to get their ID.
-- Link-table relationships with the `Relationship` type. These take a little bit of care. They have an `anchor` property for provenance. You can't feed them to `sync` because if any part of a relationship changes it's considered a different relationship: anchor, class, source, or target. Use `put` instead. _Please note:_ If a property besides these on a relationship changes, like one specified in a custom schema, `put` will not update the relationship. This is a limitation that should be addressed if the library is ever updated. It can be as simple as implementing `sync` using `updateInstance`.
+- Link-table relationships with the `Relationship` type.
 - Navigation properties by [extending or escaping the library](#extending-fir-). `fir` comes with the common ones, like parent-child relationships and element-model relationships.
 
-### Growing taller
+### Link-table relationships with `Relationship`
+
+These take a little bit of care. They have an `anchor` property for provenance. Let's look at an example.
+
+```ts
+const ship: Relationship = {
+    classFullName: 'bis:ElementRefersToDocuments',
+    source: circusTent,
+    target: drawingOfCircusTent,
+    anchor: 'circus tent to drawing',
+};
+```
+
+`circusTent` and `drawingOfCircusTent` are elements. Feeding a relationship to `put` will insert the relationship into the iModel. If you change the relationship's class, source, or target and call `put` again the relationship will _move_ in the iModel. `put` will _only_ update the relationship if this triple changes, even if you add additional properties to the relationship (isn't it odd that BIS supports properties on link-table relationships?) because `put` only inserts objects if they don't already exist. In our case, the relationship already exists because its identifier in the source (`anchor`) hasn't changed, but the relationship in the iModel no longer matches. It would be confusing for `put` to give you the `ECInstanceId` of a relationship that isn't represented by the source `Relationship`, and so we consider the relationship "new".
+
+If you want to update a relationship's properties, use `sync`. `sync` will also move the relationship if necessary.
+
+Link-table relationships in `fir` don't support a `to` property. This is because the property is boilerplate. It makes sense for elements because they frequently have navigation properties, but navigation properties for relationships seem like an unusual use case. If this turns out to be a design mistake, the fix is easy. Right now any additional properties are passed directly from `Relationship` to the backend. You can always escape the library with `put` to add navigation properties to relationships.
+
+## Growing taller 🌲
 
 Syncing an element requires specifying an awful lot of properties that probably seem redundant. Why should I have to define the BIS class of the element I want to insert? Or the code? Doesn't iTwin know how to make these things for me?
 
@@ -214,7 +235,7 @@ When we touch the iTwin APIs we have to make use of `put`, because the iTwin API
 
 The parent property looks weird, because it's `undefined`. At runtime, TypeScript can't know that `SpatialCategory` doesn't actually use that parent property. All it knows from the type of `toJSON` is that it _could_ use it and that its type is `Id64String`. We have to tell TypeScript that this property actually has the type `fir` expects, which is an optional `Element`. We explicitly write `undefined`, because this optional property is (from my understanding) equivalent to `Element | undefined`. This is structural typing after all, and a missing property is a different structure.
 
-## Extending `fir` ⚡
+## Extending `fir` 🧩
 
 Let's say we want to add a [`Bis:ExternalSourceAttachment`](https://www.itwinjs.org/bis/domains/biscore.ecschema/#externalsourceattachment) to our iModel. I don't know what this is, but it has a navigation property so we can't yet use it with `fir`. Here's what we need to do.
 

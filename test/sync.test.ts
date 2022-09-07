@@ -48,6 +48,7 @@ describe('sync', () => {
     before(async () => {
         const configuration = new backend.IModelHostConfiguration();
         configuration.cacheDir = outputPath;
+        configuration.appAssetsDir = path.join(root, 'assets');
         await backend.IModelHost.startup(configuration);
         bentley.Logger.initializeToConsole();
         bentley.Logger.setLevelDefault(bentley.LogLevel.Trace);
@@ -62,6 +63,11 @@ describe('sync', () => {
             name,
             rootSubject: { name: 'root' }
         });
+
+        imodel.importSchemas([path.join(
+            backend.IModelHost.appAssetsDir as string,
+            'relationship-properties.ecschema.xml'
+        )]);
     });
 
     afterEach(() => {
@@ -388,7 +394,7 @@ describe('sync', () => {
             classFullName: 'bis:ElementRefersToDocuments',
             source: circusTent,
             target: drawingOfCircusTent,
-            anchor: 'drawing to circus tent',
+            anchor: 'circus tent to drawing',
         };
 
         fir.put(ship);
@@ -440,6 +446,109 @@ describe('sync', () => {
         // just recycle them though.
 
         pine.put(ship);
+    });
+
+    it('link-table relationship with properties', (): void => {
+        const fir = new Sync(imodel);
+
+        const harbor: Element<common.SubjectProps> = {
+            classFullName: backend.Subject.classFullName,
+            code: backend.Subject.createCode(imodel, common.IModel.rootSubjectId, 'harbor'),
+            model: 'repository',
+            parent: { element: 'root subject', relationship: backend.SubjectOwnsSubjects.classFullName },
+            description: 'a harbor made from boulders arranged in an open ring',
+            meta: meta('harbor', '1.0.0', 'root subject'),
+            to: toElement,
+        };
+
+        fir.sync(harbor);
+
+        const boats: Element<common.SubjectProps> = {
+            classFullName: backend.Subject.classFullName,
+            code: backend.Subject.createCode(imodel, common.IModel.rootSubjectId, 'boats'),
+            model: 'repository',
+            parent: { element: 'root subject', relationship: backend.SubjectOwnsSubjects.classFullName },
+            description: 'small single-engine fishing boats and houseboats',
+            meta: meta('boats', '1.0.0', 'root subject'),
+            to: toElement,
+        };
+
+        fir.sync(boats);
+
+        type WithPropertiesProps = common.RelationshipProps & {
+            foo: string,
+            bar: number,
+            baz: boolean,
+        };
+
+        const ship: Relationship<WithPropertiesProps> = {
+            classFullName: 'RelationshipProperties:WithProperties',
+            source: harbor,
+            target: boats,
+            anchor: 'harbor-points-at-boats',
+            foo: 'whee',
+            bar: 42.5,
+            baz: false,
+        };
+
+        const id = fir.put(ship);
+
+        // There should only be one link-table relationship.
+        let ships = findElements<common.RelationshipProps>(imodel, 'RelationshipProperties:WithProperties');
+        assert.strictEqual(ships.length, 1);
+
+        let found = fir.imodel.relationships.getInstanceProps<WithPropertiesProps>(ship.classFullName, id);
+
+        assert.exists(found);
+
+        assert.strictEqual(found.foo, 'whee');
+        assert.strictEqual(found.bar, 42.5);
+        assert.isFalse(found.baz);
+
+        assert.strictEqual(found.sourceId, fir.put(harbor));
+        assert.strictEqual(found.targetId, fir.put(boats));
+
+        ship.bar = 42;
+
+        // Update only the properties.
+
+        fir.sync(ship);
+
+        // There should still only be one link-table relationship.
+        ships = findElements<common.RelationshipProps>(imodel, 'RelationshipProperties:WithProperties');
+        assert.strictEqual(ships.length, 1);
+
+        found = fir.imodel.relationships.getInstanceProps<WithPropertiesProps>(ship.classFullName, id);
+
+        assert.exists(found);
+
+        assert.strictEqual(found.foo, 'whee');
+        assert.strictEqual(found.bar, 42);
+        assert.isFalse(found.baz);
+
+        assert.strictEqual(found.sourceId, fir.put(harbor));
+        assert.strictEqual(found.targetId, fir.put(boats));
+
+        // Update the properties and move the relationship at the same time by flipping it around.
+
+        ship.source = boats;
+        ship.target = harbor;
+        ship.baz = true;
+
+        fir.sync(ship);
+
+        // There should still only be one link-table relationship.
+        ships = findElements<common.RelationshipProps>(imodel, 'RelationshipProperties:WithProperties');
+        assert.strictEqual(ships.length, 1);
+
+        found = fir.imodel.relationships.getInstanceProps<WithPropertiesProps>(ship.classFullName, fir.put(ship));
+
+        assert.strictEqual(found.foo, 'whee');
+        assert.strictEqual(found.bar, 42);
+        assert.isTrue(found.baz);
+
+        assert.strictEqual(found.sourceId, fir.put(boats));
+        assert.strictEqual(found.targetId, fir.put(harbor));
     });
 
     it('link-table relationship cannot relate parent and child', () => {
@@ -509,7 +618,7 @@ describe('sync', () => {
         assert.strictEqual(found.parent!.relClassName, 'BisCore.ElementOwnsChildElements');
     });
 
-    it('elements cannot have the same external identifier', () => {
+    it('elements cannot have the same source identifier with fir library', () => {
         const one: Element<common.UrlLinkProps> = {
             classFullName: backend.UrlLink.classFullName,
             code: common.Code.createEmpty(),
@@ -551,7 +660,7 @@ describe('sync', () => {
         );
     });
 
-    it('elements cannot have the same source identifier', () => {
+    it('elements cannot have the same source identifier with iTwin library', () => {
         const makeSubject = (label: string, description: string): void => {
             const subject: common.SubjectProps = {
                 classFullName: backend.Subject.classFullName,

@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<ECSchema schemaName="RelationshipProperties" alias="relprops" version="01.00.00" xmlns="http://www.bentley.com/schemas/Bentley.ECXML.3.1" displayLabel="Relationship Properties" description="A silly schema to test properties on link-table relationships">
+    <ECSchemaReference name="CoreCustomAttributes" version="01.00.03" alias="CoreCA"/>
+    <ECSchemaReference name="BisCustomAttributes" version="01.00.00" alias="bisCA"/>
+    <ECSchemaReference name="ECDbMap" version="02.00.00" alias="ecdbmap"/>
+    <ECSchemaReference name="ECDbSchemaPolicies" version="01.00.00" alias="ecdbpol"/>
+
+    <ECSchemaReference name="BisCore" version="01.00.09" alias="bis"/>
+
+    <ECRelationshipClass typeName="WithProperties" modifier="Sealed" description="A silly link-table relationship with properties">
+        <BaseClass>bis:ElementRefersToElements</BaseClass>
+        <Source multiplicity="(0..*)" roleLabel="points at" polymorphic="true">
+            <Class class="bis:Element"/>
+        </Source>
+        <Target multiplicity="(1..*)" roleLabel="is pointed at" polymorphic="true">
+            <Class class="bis:Element"/>
+        </Target>
+        <ECProperty propertyName="foo" typeName="string" description="A silly string"/>
+        <ECProperty propertyName="bar" typeName="double" description="A silly floating-point number"/>
+        <ECProperty propertyName="baz" typeName="boolean" description="A silly truth value"/>
+    </ECRelationshipClass>
+</ECSchema>

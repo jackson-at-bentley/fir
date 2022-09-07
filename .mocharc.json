@@ -5,5 +5,5 @@
     ],
     "loader": "ts-node/esm",
     "extension": ["ts"],
-    "timeout": 10000
+    "timeout": 2400000
 }
