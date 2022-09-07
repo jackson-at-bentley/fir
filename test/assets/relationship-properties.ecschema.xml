@@ -10,7 +10,7 @@
 
     <ECRelationshipClass typeName="WithProperties" modifier="Sealed" description="A silly link-table relationship with properties">
         <BaseClass>bis:ElementRefersToElements</BaseClass>
-        <Source multiplicity="(0..*)" roleLabel="points at" polymorphic="true">
+        <Source multiplicity="(1..*)" roleLabel="points at" polymorphic="true">
             <Class class="bis:Element"/>
         </Source>
         <Target multiplicity="(1..*)" roleLabel="is pointed at" polymorphic="true">
