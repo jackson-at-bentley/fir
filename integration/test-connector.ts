@@ -17,6 +17,7 @@ import {
     Element,
     Meta,
     Model,
+    Relationship,
     Repository,
     Source,
 } from '../src/nodes.js';
@@ -372,7 +373,7 @@ function read(): { [property: string]: unknown }
     return JSON.parse(fs.readFileSync(json, { encoding: 'utf8' }));
 }
 
-function syncGroups(fir: Sync, groupModel: Model, repository: Repository, source: Source): void
+function syncGroups(fir: Sync, groupModel: Model, repository: Repository, source: Source): Map<string, Element>
 {
     const json = read();
 
@@ -384,12 +385,14 @@ function syncGroups(fir: Sync, groupModel: Model, repository: Repository, source
     // know what Groups is an array *of*.
     const groups: { [property: string]: string | undefined }[] = json.Groups;
 
-    for(const group of groups) {
+    const groupsByName: ReturnType<typeof syncGroups> = new Map();
+
+    for (const group of groups) {
         if (!(group.guid && group.name)) {
-            throw Error('fatal: expect property \'guid\' and \'name\' in group');
+            throw Error("fatal: expect property 'guid' and 'name' in group");
         }
 
-        fir.sync<Element<elements.TestConnectorGroupProps>>({
+        const inflated: Element<elements.TestConnectorGroupProps> = {
             classFullName: elements.TestConnectorGroup.classFullName,
             code: elements.TestConnectorGroup.createCode(
                 fir.imodel, fir.put(groupModel), group.name
@@ -400,13 +403,19 @@ function syncGroups(fir: Sync, groupModel: Model, repository: Repository, source
             groupType: group.groupType,
             manufactureLocation: group.manufactureLocation,
             manufactureDate: group.manufactureDate ? new Date(group.manufactureDate) : undefined,
-        });
+        };
+
+        groupsByName.set(group.name, inflated);
+
+        fir.sync(inflated);
     }
+
+    return groupsByName;
 }
 
 function syncShapes(
     fir: Sync,
-    physicalModel: Model, definitionModel: Model, groupModel: Model,
+    physicalModel: Model, definitionModel: Model, groupModel: Model, groups: ReturnType<typeof syncGroups>,
     repository: Repository, source: Source,
     payload: TestPayload
 ): void
@@ -423,7 +432,7 @@ function syncShapes(
                 syncShape(
                     fir,
                     kind, shape,
-                    physicalModel, definitionModel, groupModel,
+                    physicalModel, definitionModel, groupModel, groups,
                     repository, source,
                     payload,
                 );
@@ -432,12 +441,12 @@ function syncShapes(
             syncShape(
                 fir,
                 kind, shapes,
-                physicalModel, definitionModel, groupModel,
+                physicalModel, definitionModel, groupModel, groups,
                 repository, source,
                 payload,
             );
         } else {
-            throw Error('fatal: expect \'Tiles\' values to be object or list of objects');
+            throw Error("fatal: expect 'Tiles' values to be object or list of objects");
         }
     }
 }
@@ -445,7 +454,7 @@ function syncShapes(
 function syncShape(
     fir: Sync,
     kind: string, shape: { [property: string]: string | undefined },
-    physicalModel: Model, definitionModel: Model, groupModel: Model,
+    physicalModel: Model, definitionModel: Model, groupModel: Model, groups: ReturnType<typeof syncGroups>,
     repository: Repository, source: Source,
     payload: TestPayload,
 ): void
@@ -518,31 +527,14 @@ function syncShape(
     fir.sync(props);
 
     if (shape.Group) {
-        const code = elements.TestConnectorGroup.createCode(
-            fir.imodel, groupModelId, shape.Group
-        );
+        const groupGroupsShape: Relationship = {
+            classFullName: backend.ElementGroupsMembers.classFullName,
+            source: groups.get(shape.Group) as Element,
+            target: props,
+            anchor: `${shape.Group} to ${props.meta.anchor}`,
+        };
 
-        const sourceId = fir.imodel.elements.queryElementIdByCode(code);
-
-        if (!sourceId) {
-            throw Error(`fatal: group with code value '${code.value}' does not exist`);
-        }
-
-        const targetId = fir.put(props);
-
-        // FILE ISSUE: Why doesn't tryGetInstance take RelationshipProps when insert does?
-
-        const arrow = fir.imodel.relationships.tryGetInstance<backend.ElementGroupsMembers>(
-            backend.ElementGroupsMembers.classFullName,
-            { sourceId, targetId }
-        );
-
-        if (!arrow) {
-            fir.imodel.relationships.insertInstance({
-                classFullName: backend.ElementGroupsMembers.classFullName,
-                sourceId, targetId
-            });
-        }
+        fir.put(groupGroupsShape);
     }
 }
 
@@ -730,9 +722,9 @@ export function grow(imodel: backend.IModelDb, payload: TestPayload): void
 
     defineParts(fir, definitions, repository, source);
 
-    syncGroups(fir, groups, repository, source);
+    const groupsByName = syncGroups(fir, groups, repository, source);
 
-    syncShapes(fir, physicals, definitions, groups, repository, source, payload);
+    syncShapes(fir, physicals, definitions, groups, groupsByName, repository, source, payload);
 
     const view = viewDefinition(fir, 'TestConnectorView', category, physicals, definitions);
 
