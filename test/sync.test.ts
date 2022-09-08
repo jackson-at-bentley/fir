@@ -29,7 +29,6 @@ import {
 import { assert } from 'chai';
 import { findElements } from '../src/queries.js';
 import { nestedDefinitionModels } from './playthings.js';
-import { ExternalSourceAspect } from '@itwin/core-backend';
 
 const count = (imodel: backend.IModelDb, query: string, times: number): void => {
     imodel.withStatement<void>(query, (statement) => {
@@ -701,6 +700,74 @@ describe('sync', () => {
         // count(imodel, subjects, 2);
 
         // const found = ExternalSourceAspect.findBySource(imodel, common.IModel.rootSubjectId, 'ts', 'harbor');
+    });
+
+    it('update external aspect that has different element is a noop', () => {
+        const harbor: common.SubjectProps = {
+            classFullName: backend.Subject.classFullName,
+            model: common.IModel.repositoryModelId,
+            parent: new backend.SubjectOwnsSubjects(common.IModel.rootSubjectId),
+            code: backend.Subject.createCode(imodel, common.IModel.rootSubjectId, 'harbor'),
+            description: 'one particular harbor and all are safe within',
+        };
+
+        const boats: common.SubjectProps = {
+            classFullName: backend.Subject.classFullName,
+            model: common.IModel.repositoryModelId,
+            parent: new backend.SubjectOwnsSubjects(common.IModel.rootSubjectId),
+            code: backend.Subject.createCode(imodel, common.IModel.rootSubjectId, 'boats'),
+            description: 'small single-engine fishing boats on the clear blue bay',
+        };
+
+        const harborId = imodel.elements.insertElement(harbor);
+        const boatsId = imodel.elements.insertElement(boats);
+
+        const meta: common.ExternalSourceAspectProps = {
+            classFullName: backend.ExternalSourceAspect.classFullName,
+            element: new backend.ElementOwnsExternalSourceAspects(harborId),
+            scope: { id: common.IModel.rootSubjectId },
+            identifier: 'harbor',
+            version: '1.0.0',
+            kind: 'ts',
+        };
+
+        imodel.elements.insertAspect(meta);
+
+        imodel.saveChanges('done inserting aspect'); // COMMIT
+
+        const inserted = (
+            'select count(*) from bis:Subject as subjects inner join bis:ExternalSourceAspect as metas'
+            + ' on subjects.ECInstanceId = metas.Element.id'
+            + ' where subjects.CodeValue = metas.Identifier'
+            + " and subjects.CodeValue = 'harbor'"
+        );
+
+        count(imodel, inserted, 1);
+
+        const { aspectId } = backend.ExternalSourceAspect.findBySource(imodel, common.IModel.rootSubjectId, 'ts', 'harbor');
+
+        assert.exists(aspectId);
+
+        meta.id = aspectId;
+        meta.element = new backend.ElementOwnsExternalSourceAspects(boatsId);
+
+        imodel.elements.updateAspect(meta);
+
+        imodel.saveChanges('done moving aspect'); // COMMIT
+
+        const total = (
+            'select count(*) from bis:ExternalSourceAspect'
+        );
+
+        const moved = (
+            'select count(*) from bis:Subject as subjects inner join bis:ExternalSourceAspect as metas'
+            + ' on subjects.ECInstanceId = metas.Element.id'
+            + ' where subjects.CodeValue = metas.Identifier'
+            + " and subjects.CodeValue = 'harbor'"
+        );
+
+        count(imodel, total, 1);
+        count(imodel, moved, 1);
     });
 
     it('trim nested definition models', () => {
