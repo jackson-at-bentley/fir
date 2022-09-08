@@ -749,6 +749,7 @@ describe('sync', () => {
         assert.exists(aspectId);
 
         meta.id = aspectId;
+        meta.kind = 'typescript',
         meta.element = new backend.ElementOwnsExternalSourceAspects(boatsId);
 
         imodel.elements.updateAspect(meta);
@@ -768,6 +769,11 @@ describe('sync', () => {
 
         count(imodel, total, 1);
         count(imodel, moved, 1);
+
+        const found = imodel.elements.getAspect(aspectId as string).toJSON() as common.ExternalSourceAspectProps;
+
+        assert.strictEqual(found.element.id, harborId);
+        assert.strictEqual(found.kind, 'typescript');
     });
 
     it('trim nested definition models', () => {
